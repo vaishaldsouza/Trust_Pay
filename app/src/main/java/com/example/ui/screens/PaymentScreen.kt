@@ -50,6 +50,37 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.example.engine.BleConnectionState
+import com.example.engine.NearbyPeerDevice
+import com.example.engine.WifiDirectConnectionState
+import com.example.engine.WifiDirectPeer
+import com.example.engine.QrScanState
+import com.example.data.model.Transaction
+import android.graphics.Bitmap
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
+import java.util.EnumMap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -102,6 +133,29 @@ fun PaymentScreen(
     onToggleTamper: () -> Unit,
     onSubmitPayment: (String) -> Unit,
     walletBalance: Double,
+    bleConnectionState: BleConnectionState = BleConnectionState.Idle,
+    bleDiscoveredDevices: List<NearbyPeerDevice> = emptyList(),
+    onStartBleScan: () -> Unit = {},
+    onStopBleScan: () -> Unit = {},
+    onConnectBleDevice: (NearbyPeerDevice) -> Unit = {},
+    onDisconnectBleDevice: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onEnableBluetooth: () -> Unit = {},
+    onRequestPermissions: () -> Unit = {},
+    wifiDirectConnectionState: WifiDirectConnectionState = WifiDirectConnectionState.Idle,
+    wifiDirectDiscoveredPeers: List<WifiDirectPeer> = emptyList(),
+    onStartWifiDirectScan: () -> Unit = {},
+    onStopWifiDirectScan: () -> Unit = {},
+    onConnectWifiDirectPeer: (WifiDirectPeer) -> Unit = {},
+    onDisconnectWifiDirectPeer: () -> Unit = {},
+    qrScanState: QrScanState = QrScanState.Idle,
+    onStartQrScan: () -> Unit = {},
+    onStopQrScan: () -> Unit = {},
+    onProcessQrPayload: (String) -> Unit = {},
+    onRequestCameraPermission: () -> Unit = {},
+    generateSignedTransactionQr: ((Transaction) -> Bitmap?)? = null,
+    generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
+    onOpenUssdClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -112,6 +166,53 @@ fun PaymentScreen(
     var upiIdInput by remember { mutableStateOf("artisanroasters@okhdfcbank") }
     var isMerchantDropdownOpen by remember { mutableStateOf(false) }
     var showLimitExceededModal by remember { mutableStateOf(false) }
+    var showPermissionRationaleDialog by remember { mutableStateOf(false) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner, selectedOfflineOption) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                onStopBleScan()
+                onStopWifiDirectScan()
+                onStopQrScan()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (selectedOfflineOption == OfflinePaymentOption.BLUETOOTH) {
+                onStopBleScan()
+            } else if (selectedOfflineOption == OfflinePaymentOption.WIFI) {
+                onStopWifiDirectScan()
+            } else if (selectedOfflineOption == OfflinePaymentOption.QR) {
+                onStopQrScan()
+            }
+        }
+    }
+
+    if (showPermissionRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRationaleDialog = false },
+            title = { Text("Bluetooth & Location Permissions Required", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("TrustPay uses Bluetooth Low Energy (BLE) scanning, GATT advertising, and Location services to discover nearby offline merchant POS terminals and securely transfer Ed25519 signed transaction payloads without cellular internet.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPermissionRationaleDialog = false
+                    onRequestPermissions()
+                }) {
+                    Text("Grant Permissions", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRationaleDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // Interactive hardware testing states
     var isSoundwaveTesting by remember { mutableStateOf(false) }
@@ -528,164 +629,715 @@ fun PaymentScreen(
                         // 4 OFFLINE TRANSMISSION METHOD SUBVIEWS
                         when (selectedOfflineOption) {
                             OfflinePaymentOption.QR -> {
-                                Text(
-                                    text = "📷 Scan Offline Merchant QR Code",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(130.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(colors.surfaceContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
+                                var qrSubTab by remember { mutableStateOf(0) } // 0: Scan Merchant QR, 1: Show Payment QR
+
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    // Subtab Selector
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(colors.surfaceContainer, RoundedCornerShape(8.dp))
+                                            .padding(3.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.QrCode,
-                                            contentDescription = null,
-                                            tint = colors.primary,
-                                            modifier = Modifier.size(44.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = "Target: ${selectedMerchant.businessName}",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = colors.primary
-                                        )
-                                        Text(
-                                            text = "Verified Device Public Key: MCowBQYDK2VwAyEA...78b1",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.onSurfaceVariant
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (qrSubTab == 0) colors.primary else Color.Transparent)
+                                                .clickable { qrSubTab = 0 }
+                                                .padding(vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                "📷 Scan Merchant QR",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (qrSubTab == 0) Color.White else colors.onSurfaceVariant
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (qrSubTab == 1) colors.primary else Color.Transparent)
+                                                .clickable { qrSubTab = 1 }
+                                                .padding(vertical = 6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                "📱 Show Payment QR",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = if (qrSubTab == 1) Color.White else colors.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    if (qrSubTab == 0) {
+                                        // SCAN MERCHANT QR MODE
+                                        when (qrScanState) {
+                                            is QrScanState.Error -> {
+                                                val err = qrScanState as QrScanState.Error
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = colors.errorContainer.copy(alpha = 0.25f)),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Column(modifier = Modifier.padding(14.dp)) {
+                                                        Text(
+                                                            "⚠️ ${err.message}",
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = colors.error,
+                                                            style = MaterialTheme.typography.bodyMedium
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                            if (err.isPermissionError) {
+                                                                Button(
+                                                                    onClick = onOpenSettings,
+                                                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                                ) {
+                                                                    Text("Open App Settings")
+                                                                }
+                                                                OutlinedButton(onClick = onRequestCameraPermission) {
+                                                                    Text("Grant Permission")
+                                                                }
+                                                            } else {
+                                                                Button(
+                                                                    onClick = onStartQrScan,
+                                                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                                ) {
+                                                                    Text("Retry Camera Scan")
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            is QrScanState.Scanning -> {
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(220.dp)
+                                                            .clip(RoundedCornerShape(12.dp))
+                                                            .border(2.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                                    ) {
+                                                        CameraQrScannerView(
+                                                            onQrScanned = { payload -> onProcessQrPayload(payload) },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    OutlinedButton(onClick = onStopQrScan) {
+                                                        Text("Stop Camera Viewfinder")
+                                                    }
+                                                }
+                                            }
+
+                                            is QrScanState.VerifiedSuccess -> {
+                                                val verified = qrScanState as QrScanState.VerifiedSuccess
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = colors.secondaryFixed.copy(alpha = 0.15f)),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .border(1.5.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                                ) {
+                                                    Column(modifier = Modifier.padding(14.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Text(
+                                                                "✅ QR Payload Verified",
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = colors.secondary,
+                                                                style = MaterialTheme.typography.titleMedium
+                                                            )
+                                                            Box(
+                                                                modifier = Modifier
+                                                                    .clip(RoundedCornerShape(4.dp))
+                                                                    .background(if (verified.isSignatureValid) colors.secondary else colors.error)
+                                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = if (verified.isSignatureValid) "Signature: VALID" else "Signature: INVALID",
+                                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                                    color = Color.White
+                                                                )
+                                                            }
+                                                        }
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            "Merchant: ${verified.merchantName}",
+                                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                            color = colors.primary
+                                                        )
+                                                        if (verified.transaction.amount > 0L) {
+                                                            Text(
+                                                                "Amount: ₹${verified.transaction.amount}",
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                color = colors.onSurfaceVariant
+                                                            )
+                                                        }
+                                                        Text(
+                                                            "Tx ID: ${verified.transaction.transactionId}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = colors.onSurfaceVariant
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        OutlinedButton(onClick = onStartQrScan) {
+                                                            Text("Scan Another QR")
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            else -> {
+                                                // IDLE
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(160.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .background(colors.surfaceContainer),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Column(
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                        verticalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.QrCodeScanner,
+                                                            contentDescription = null,
+                                                            tint = colors.primary,
+                                                            modifier = Modifier.size(44.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.height(6.dp))
+                                                        Text(
+                                                            text = "Target: ${selectedMerchant.businessName}",
+                                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                            color = colors.primary
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Button(
+                                                            onClick = onStartQrScan,
+                                                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                        ) {
+                                                            Text("Start Camera Scanner")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // SHOW PAYMENT QR MODE
+                                        val amt = amountInput.toLongOrNull() ?: 150L
+                                        val dummyTx = remember(amt, selectedMerchant) {
+                                            Transaction(
+                                                transactionId = "TXN-QR-${(100..999).random()}",
+                                                buyerId = buyer.userId,
+                                                buyerName = "Ganesh",
+                                                merchantId = selectedMerchant.merchantId,
+                                                merchantName = selectedMerchant.businessName,
+                                                amount = amt,
+                                                currency = "INR",
+                                                mode = com.example.data.model.TransactionMode.OFFLINE_VALUE,
+                                                timestamp = System.currentTimeMillis(),
+                                                nonce = "NC-QR-9901",
+                                                signature = "MEQCIDz...Ed25519SigSample",
+                                                status = com.example.data.model.TransactionStatus.OFFLINE_ACCEPTED
+                                            )
+                                        }
+
+                                        val qrBitmap = remember(dummyTx) {
+                                            generateSignedTransactionQr?.invoke(dummyTx)
+                                        }
+
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            if (qrBitmap != null) {
+                                                Image(
+                                                    bitmap = qrBitmap.asImageBitmap(),
+                                                    contentDescription = "Signed Transaction QR",
+                                                    modifier = Modifier
+                                                        .size(200.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(Color.White)
+                                                        .border(1.dp, colors.outlineVariant, RoundedCornerShape(8.dp))
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(200.dp)
+                                                        .background(Color.LightGray),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("Generating QR...")
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                "Show this QR code to Merchant POS camera scanner",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                                color = colors.onSurfaceVariant
+                                            )
+                                            Text(
+                                                "Encodes Ed25519 signed transaction payload (₹$amt)",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.secondary
+                                            )
+                                        }
                                     }
                                 }
                             }
                             OfflinePaymentOption.BLUETOOTH -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "🔵 Pay via Bluetooth (BLE Nearby Terminal)",
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = colors.primary
-                                    )
-                                    Text(
-                                        text = if (isScanningBlePeers) "Scanning..." else "Channel: Ready",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colors.secondary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(colors.surfaceContainer)
-                                        .padding(14.dp)
-                                ) {
-                                    Column {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "🔵 Pay via Bluetooth (BLE GATT Terminal)",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                        val statusLabel = when (bleConnectionState) {
+                                            is BleConnectionState.Scanning -> "Scanning..."
+                                            is BleConnectionState.Connecting -> "Connecting..."
+                                            is BleConnectionState.MtuNegotiating -> "MTU 512..."
+                                            is BleConnectionState.ConnectedReady -> "Connected & Ready"
+                                            is BleConnectionState.BluetoothOff -> "Bluetooth OFF"
+                                            is BleConnectionState.Error -> "Error"
+                                            else -> "Channel Ready"
+                                        }
+                                        Text(
+                                            text = statusLabel,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = if (bleConnectionState is BleConnectionState.ConnectedReady) colors.secondary else colors.error
+                                        )
+                                    }
+
+                                    // Two-device demo disclaimer banner
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(colors.primaryContainer.copy(alpha = 0.5f))
+                                            .padding(10.dp)
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Warning, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Two-Device Demo: BLE advertising and GATT connection require physical Android hardware. Standard emulators show diagnostic fallback states.",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = colors.primary
+                                            )
+                                        }
+                                    }
+
+                                    when (bleConnectionState) {
+                                        is BleConnectionState.BluetoothOff -> {
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text("Bluetooth is currently turned off on this device.", fontWeight = FontWeight.Bold, color = colors.primary)
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Button(
+                                                        onClick = onEnableBluetooth,
+                                                        colors = ButtonDefaults.buttonColors(containerColor = colors.secondary)
+                                                    ) {
+                                                        Text("Turn On Bluetooth")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is BleConnectionState.Error -> {
+                                            val err = bleConnectionState as BleConnectionState.Error
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = colors.errorContainer.copy(alpha = 0.25f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Text("⚠️ ${err.message}", fontWeight = FontWeight.Bold, color = colors.error, style = MaterialTheme.typography.bodyMedium)
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        if (err.isPermissionError) {
+                                                            Button(
+                                                                onClick = onOpenSettings,
+                                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                            ) {
+                                                                Text("Open App Settings")
+                                                            }
+                                                            OutlinedButton(onClick = { showPermissionRationaleDialog = true }) {
+                                                                Text("Rationale")
+                                                            }
+                                                        } else {
+                                                            Button(
+                                                                onClick = onStartBleScan,
+                                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                            ) {
+                                                                Text("Retry BLE Connection / Scan")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is BleConnectionState.ConnectedReady -> {
+                                            val ready = bleConnectionState as BleConnectionState.ConnectedReady
                                             Box(
                                                 modifier = Modifier
-                                                    .size(40.dp)
-                                                    .clip(CircleShape)
-                                                    .background(colors.secondaryFixed.copy(alpha = 0.4f)),
-                                                contentAlignment = Alignment.Center
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(colors.secondaryFixed.copy(alpha = 0.15f))
+                                                    .border(1.5.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                                    .padding(14.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Bluetooth,
-                                                    contentDescription = null,
-                                                    tint = colors.secondary,
-                                                    modifier = Modifier.size(22.dp)
-                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(40.dp)
+                                                                .clip(CircleShape)
+                                                                .background(colors.secondary),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                                        }
+                                                        Spacer(modifier = Modifier.width(12.dp))
+                                                        Column {
+                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
+                                                            Text("GATT: ${ready.deviceAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                            Text("MTU: ${ready.mtu} bytes • Service 47a25000 Verified", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                        }
+                                                    }
+                                                    TextButton(onClick = onDisconnectBleDevice) {
+                                                        Text("Disconnect", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
                                             }
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Column {
-                                                Text(
-                                                    text = "BLE Terminal: ${selectedMerchant.businessName}",
-                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                                    color = colors.primary
-                                                )
-                                                Text(
-                                                    text = "Signal: -42 dBm (Strong) • GATT Service UUID: fee0",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.secondary
-                                                )
-                                                Text(
-                                                    text = "Hardware channel: Android BluetoothAdapter active",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.onSurfaceVariant
-                                                )
+                                        }
+
+                                        else -> {
+                                            // Scanning, Found, Connecting, MtuNegotiating, Idle
+                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = if (bleDiscoveredDevices.isEmpty()) "Searching for TrustPay POS..." else "Discovered Terminals (${bleDiscoveredDevices.size})",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = colors.onSurfaceVariant
+                                                    )
+                                                    TextButton(onClick = onStartBleScan) {
+                                                        Text("Start / Refresh Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+
+                                                if (bleConnectionState is BleConnectionState.Scanning || bleConnectionState is BleConnectionState.Connecting || bleConnectionState is BleConnectionState.MtuNegotiating) {
+                                                    LinearProgressIndicator(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(4.dp)
+                                                            .clip(RoundedCornerShape(2.dp)),
+                                                        color = colors.secondary
+                                                    )
+                                                }
+
+                                                if (bleDiscoveredDevices.isEmpty()) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .background(colors.surfaceContainer)
+                                                            .padding(14.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text("No nearby TrustPay BLE terminals discovered yet. Tap 'Start / Refresh Scan' or ensure Merchant terminal is broadcasting.", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                    }
+                                                } else {
+                                                    bleDiscoveredDevices.forEach { peer ->
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clip(RoundedCornerShape(10.dp))
+                                                                .background(colors.surfaceContainer)
+                                                                .clickable { onConnectBleDevice(peer) }
+                                                                .padding(12.dp)
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .size(36.dp)
+                                                                            .clip(CircleShape)
+                                                                            .background(colors.primary.copy(alpha = 0.1f)),
+                                                                        contentAlignment = Alignment.Center
+                                                                    ) {
+                                                                        Icon(Icons.Default.Bluetooth, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                                                                    }
+                                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                                    Column {
+                                                                        Text(peer.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
+                                                                        Text("Signal: ${peer.rssi} dBm • ${if (peer.isPaired) "Paired" else "Discovered BLE"}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                                    }
+                                                                }
+                                                                Button(
+                                                                    onClick = { onConnectBleDevice(peer) },
+                                                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                ) {
+                                                                    Text("Connect GATT", fontSize = 11.sp)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                             OfflinePaymentOption.WIFI -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "📶 Pay via Wi-Fi Direct (Local P2P Mesh)",
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = colors.primary
-                                    )
-                                    Text(
-                                        text = "Port: 8988",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colors.secondary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(colors.surfaceContainer)
-                                        .padding(14.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(CircleShape)
-                                                .background(colors.primary.copy(alpha = 0.15f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Sensors,
-                                                contentDescription = null,
-                                                tint = colors.primary,
-                                                modifier = Modifier.size(22.dp)
-                                            )
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "📶 Pay via Wi-Fi Direct (P2P DNS-SD)",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                        val statusLabel = when (wifiDirectConnectionState) {
+                                            is WifiDirectConnectionState.Discovering -> "Discovering..."
+                                            is WifiDirectConnectionState.Connecting -> "Connecting P2P..."
+                                            is WifiDirectConnectionState.ConnectedReady -> "Connected & Ready"
+                                            is WifiDirectConnectionState.WifiOff -> "Wi-Fi OFF"
+                                            is WifiDirectConnectionState.Error -> "Error"
+                                            else -> "Port 8988 Ready"
                                         }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column {
+                                        Text(
+                                            text = statusLabel,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = if (wifiDirectConnectionState is WifiDirectConnectionState.ConnectedReady) colors.secondary else colors.error
+                                        )
+                                    }
+
+                                    // Two-device demo disclaimer banner
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(colors.primaryContainer.copy(alpha = 0.5f))
+                                            .padding(10.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Warning, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Wi-Fi Direct P2P: TPAY_DIRECT_MESH",
-                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                text = "Wi-Fi Direct P2P: Symmetric peer discovery (WifiP2pManager) & length-prefixed TCP socket streams (Port 8988). Requires physical Android hardware.",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                                 color = colors.primary
                                             )
-                                            Text(
-                                                text = "Peer Connected: ${selectedMerchant.businessName} (192.168.49.1)",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = colors.secondary
-                                            )
-                                            Text(
-                                                text = "Direct high-speed local TCP socket stream (Zero Internet)",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = colors.onSurfaceVariant
-                                            )
+                                        }
+                                    }
+
+                                    when (wifiDirectConnectionState) {
+                                        is WifiDirectConnectionState.WifiOff -> {
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text("Wi-Fi is currently turned off on this device.", fontWeight = FontWeight.Bold, color = colors.primary)
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Button(
+                                                        onClick = onOpenSettings,
+                                                        colors = ButtonDefaults.buttonColors(containerColor = colors.secondary)
+                                                    ) {
+                                                        Text("Open App Settings / Wi-Fi")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is WifiDirectConnectionState.Error -> {
+                                            val err = wifiDirectConnectionState as WifiDirectConnectionState.Error
+                                            Card(
+                                                colors = CardDefaults.cardColors(containerColor = colors.errorContainer.copy(alpha = 0.25f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(14.dp)) {
+                                                    Text("⚠️ ${err.message}", fontWeight = FontWeight.Bold, color = colors.error, style = MaterialTheme.typography.bodyMedium)
+                                                    Spacer(modifier = Modifier.height(8.dp))
+                                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        if (err.isPermissionError) {
+                                                            Button(
+                                                                onClick = onOpenSettings,
+                                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                            ) {
+                                                                Text("Open App Settings")
+                                                            }
+                                                            OutlinedButton(onClick = onRequestPermissions) {
+                                                                Text("Request Permissions")
+                                                            }
+                                                        } else {
+                                                            Button(
+                                                                onClick = onStartWifiDirectScan,
+                                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                                            ) {
+                                                                Text("Retry P2P Scan")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        is WifiDirectConnectionState.ConnectedReady -> {
+                                            val ready = wifiDirectConnectionState as WifiDirectConnectionState.ConnectedReady
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(colors.secondaryFixed.copy(alpha = 0.15f))
+                                                    .border(1.5.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                                    .padding(14.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(40.dp)
+                                                                .clip(CircleShape)
+                                                                .background(colors.secondary),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                                        }
+                                                        Spacer(modifier = Modifier.width(12.dp))
+                                                        Column {
+                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
+                                                            Text("P2P IP: ${ready.ipAddress} • Port 8988", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                            Text("${if (ready.isGroupOwner) "Group Owner (Server)" else "Group Client"} • TCP Socket Active", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                        }
+                                                    }
+                                                    TextButton(onClick = onDisconnectWifiDirectPeer) {
+                                                        Text("Disconnect P2P", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        else -> {
+                                            // Discovering, FoundDevices, Connecting, Idle
+                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = if (wifiDirectDiscoveredPeers.isEmpty()) "Discovering Wi-Fi Direct Terminals..." else "Found P2P Devices (${wifiDirectDiscoveredPeers.size})",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = colors.onSurfaceVariant
+                                                    )
+                                                    TextButton(onClick = onStartWifiDirectScan) {
+                                                        Text("Start / Refresh P2P Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+
+                                                if (wifiDirectConnectionState is WifiDirectConnectionState.Discovering || wifiDirectConnectionState is WifiDirectConnectionState.Connecting) {
+                                                    LinearProgressIndicator(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(4.dp)
+                                                            .clip(RoundedCornerShape(2.dp)),
+                                                        color = colors.secondary
+                                                    )
+                                                }
+
+                                                if (wifiDirectDiscoveredPeers.isEmpty()) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .background(colors.surfaceContainer)
+                                                            .padding(14.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text("No Wi-Fi Direct P2P terminals discovered yet. Tap 'Start / Refresh P2P Scan' or ensure Merchant terminal is broadcasting.", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                    }
+                                                } else {
+                                                    wifiDirectDiscoveredPeers.forEach { peer ->
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clip(RoundedCornerShape(10.dp))
+                                                                .background(colors.surfaceContainer)
+                                                                .clickable { onConnectWifiDirectPeer(peer) }
+                                                                .padding(12.dp)
+                                                        ) {
+                                                            Row(
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                                verticalAlignment = Alignment.CenterVertically
+                                                            ) {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .size(36.dp)
+                                                                            .clip(CircleShape)
+                                                                            .background(colors.primary.copy(alpha = 0.1f)),
+                                                                        contentAlignment = Alignment.Center
+                                                                    ) {
+                                                                        Icon(Icons.Default.Sensors, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                                                                    }
+                                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                                    Column {
+                                                                        Text(peer.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
+                                                                        Text("${peer.status} • IP: ${peer.ipAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                                    }
+                                                                }
+                                                                Button(
+                                                                    onClick = { onConnectWifiDirectPeer(peer) },
+                                                                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                ) {
+                                                                    Text("Connect P2P", fontSize = 11.sp)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1138,10 +1790,81 @@ fun PaymentScreen(
             }
         }
 
+        // USSD *99# Feature Phone Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .testTag("payment_ussd_card")
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.PhoneInTalk,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Pay via USSD (*99#)",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
+                        Text(
+                            text = "NPCI GSM Code",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.secondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Opens your phone's dialer pre-filled with *99#. Exits TrustPay app to connect directly to your bank over cellular network.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onOpenUssdClick,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .testTag("payment_open_ussd_button")
+                    ) {
+                        Text(
+                            text = "Launch Dialer with *99#",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
+
         // ==========================================
-        // 7. SUBMIT BUTTON
+        // 4. SUBMIT / AUTHORIZE PAYMENT
         // ==========================================
         item {
+            val isBleReady = bleConnectionState is BleConnectionState.ConnectedReady
+            val isWifiReady = wifiDirectConnectionState is WifiDirectConnectionState.ConnectedReady
+            val isTransportConnected = if (!isOnline) {
+                when (selectedOfflineOption) {
+                    OfflinePaymentOption.BLUETOOTH -> isBleReady
+                    OfflinePaymentOption.WIFI -> isWifiReady
+                    else -> true
+                }
+            } else true
+
             Button(
                 onClick = {
                     if (isOnline || isWithinOfflineCap) {
@@ -1150,7 +1873,7 @@ fun PaymentScreen(
                         showLimitExceededModal = true
                     }
                 },
-                enabled = isAmountValid,
+                enabled = isAmountValid && isTransportConnected,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (!isWithinOfflineCap) colors.error else colors.primary,
                     contentColor = Color.White
@@ -1320,4 +2043,83 @@ fun OfflineLimitExceededView(
             Text("Adjust Amount", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
         }
     }
+}
+
+@Composable
+fun CameraQrScannerView(
+    onQrScanned: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var hasScanned by remember { mutableStateOf(false) }
+
+    AndroidView(
+        factory = { ctx ->
+            val previewView = PreviewView(ctx).apply {
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+            }
+            val executor = ContextCompat.getMainExecutor(ctx)
+            cameraProviderFuture.addListener({
+                try {
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+
+                    val imageAnalysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+
+                    val reader = MultiFormatReader().apply {
+                        val map = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java)
+                        map[DecodeHintType.POSSIBLE_FORMATS] = listOf(BarcodeFormat.QR_CODE)
+                        setHints(map)
+                    }
+
+                    imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                        if (!hasScanned) {
+                            try {
+                                val buffer = imageProxy.planes[0].buffer
+                                val data = ByteArray(buffer.remaining())
+                                buffer.get(data)
+                                val width = imageProxy.width
+                                val height = imageProxy.height
+
+                                val source = PlanarYUVLuminanceSource(
+                                    data, width, height, 0, 0, width, height, false
+                                )
+                                val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+
+                                val result = reader.decodeWithState(binaryBitmap)
+                                if (result != null && !result.text.isNullOrBlank()) {
+                                    hasScanned = true
+                                    onQrScanned(result.text)
+                                }
+                            } catch (e: Exception) {
+                                // Frame does not contain valid QR code
+                            } finally {
+                                reader.reset()
+                            }
+                        }
+                        imageProxy.close()
+                    }
+
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        imageAnalysis
+                    )
+                } catch (e: Exception) {
+                    android.util.Log.e("CameraQrScannerView", "Error initializing CameraX: ${e.message}", e)
+                }
+            }, executor)
+
+            previewView
+        },
+        modifier = modifier
+    )
 }

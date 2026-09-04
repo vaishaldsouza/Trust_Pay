@@ -22,16 +22,24 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,10 +58,20 @@ fun RoleSelectorScreen(
     currentRole: UserRole,
     onRoleSelected: (UserRole) -> Unit,
     onContinue: () -> Unit,
+    onLogin: (String, String, (Boolean, String) -> Unit) -> Unit = { _, _, _ -> },
+    onRegister: (String, String, String, UserRole, (Boolean, String) -> Unit) -> Unit = { _, _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
+
+    var showAuthModal by remember { mutableStateOf(false) }
+    var isRegisterMode by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf("") }
+    var emailInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
+    var authFeedbackMsg by remember { mutableStateOf<String?>(null) }
+    var isAuthSubmitting by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -127,7 +145,7 @@ fun RoleSelectorScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = onContinue,
@@ -145,6 +163,114 @@ fun RoleSelectorScreen(
             Spacer(modifier = Modifier.width(6.dp))
             Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { showAuthModal = true },
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+        ) {
+            Text("🔑 Account Sign In / Register", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+        }
+    }
+
+    if (showAuthModal) {
+        AlertDialog(
+            onDismissRequest = { showAuthModal = false },
+            title = {
+                Text(
+                    text = if (isRegisterMode) "Register New Account" else "Sign In to TrustPay",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (isRegisterMode) {
+                        OutlinedTextField(
+                            value = nameInput,
+                            onValueChange = { nameInput = it },
+                            label = { Text("Full Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = emailInput,
+                        onValueChange = { emailInput = it },
+                        label = { Text("Email Address") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = { passwordInput = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (authFeedbackMsg != null) {
+                        Text(
+                            text = authFeedbackMsg!!,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.primary
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            isRegisterMode = !isRegisterMode
+                            authFeedbackMsg = null
+                        }
+                    ) {
+                        Text(
+                            text = if (isRegisterMode) "Already have an account? Sign In" else "New to TrustPay? Create an Account",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !isAuthSubmitting && emailInput.isNotBlank() && passwordInput.isNotBlank(),
+                    onClick = {
+                        isAuthSubmitting = true
+                        authFeedbackMsg = "Authenticating..."
+                        if (isRegisterMode) {
+                            onRegister(nameInput.ifEmpty { emailInput.substringBefore("@") }, emailInput, passwordInput, currentRole) { success, msg ->
+                                isAuthSubmitting = false
+                                authFeedbackMsg = msg
+                                if (success) {
+                                    showAuthModal = false
+                                    onContinue()
+                                }
+                            }
+                        } else {
+                            onLogin(emailInput, passwordInput) { success, msg ->
+                                isAuthSubmitting = false
+                                authFeedbackMsg = msg
+                                if (success) {
+                                    showAuthModal = false
+                                    onContinue()
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text(if (isRegisterMode) "Register & Login" else "Sign In")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuthModal = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

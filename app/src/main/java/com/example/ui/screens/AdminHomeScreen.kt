@@ -53,6 +53,7 @@ fun AdminHomeScreen(
     adminMetrics: AdminMetrics = AdminMetrics(),
     onAlertClick: (String) -> Unit,
     onStartDemoClick: () -> Unit,
+    isSupabaseConfigured: Boolean = com.example.data.remote.SupabaseClient.isConfigured(),
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -73,11 +74,26 @@ fun AdminHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = strings.adminOverview,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = colors.primary
-                )
+                Column {
+                    Text(
+                        text = strings.adminOverview,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isSupabaseConfigured) colors.secondaryFixed.copy(alpha = 0.3f) else colors.warning.copy(alpha = 0.2f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isSupabaseConfigured) "🟢 Cloud Sync: Active" else "⚠️ Cloud Sync: Not Configured",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                            color = if (isSupabaseConfigured) colors.secondary else colors.warning
+                        )
+                    }
+                }
 
                 // Quick Hackathon Demo Trigger
                 Button(

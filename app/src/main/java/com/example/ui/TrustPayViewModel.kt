@@ -23,6 +23,18 @@ import com.example.data.remote.SupabaseClient
 import com.example.data.remote.SupabaseDeviceRepository
 import com.example.data.remote.SupabaseSyncWorker
 import com.example.data.remote.SupabaseTransactionRepository
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import com.example.engine.BleConnectionState
+import com.example.engine.BluetoothPaymentEngine
+import com.example.engine.NearbyPeerDevice
+import com.example.engine.WifiDirectConnectionState
+import com.example.engine.WifiDirectPeer
+import com.example.engine.WifiDirectPaymentEngine
+import com.example.engine.QrPaymentEngine
+import com.example.engine.QrScanState
 import com.example.engine.FraudDetector
 import com.example.engine.GeminiExplainabilityService
 import com.example.engine.ModeSelectorChoice
@@ -53,6 +65,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     val bluetoothEngine = BluetoothPaymentEngine(application)
     val wifiDirectEngine = WifiDirectPaymentEngine(application)
     val ultrasonicEngine = UltrasonicEngine(application)
+    val qrEngine = QrPaymentEngine(application)
 
     // Hardware Transmission States
     private val _hardwareTransmissionProgress = MutableStateFlow(0f)
@@ -64,7 +77,17 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     private val _isHardwareTransmitting = MutableStateFlow(false)
     val isHardwareTransmitting: StateFlow<Boolean> = _isHardwareTransmitting.asStateFlow()
 
-    // Discovered Hardware Peers
+    // Discovered Hardware Peers & QR Scan State
+    val bleConnectionState: StateFlow<BleConnectionState> = bluetoothEngine.connectionState
+    val bleDiscoveredDevices: StateFlow<List<NearbyPeerDevice>> = bluetoothEngine.discoveredDevices
+    val isMerchantBleAdvertising: StateFlow<Boolean> = bluetoothEngine.isAdvertising
+
+    val wifiDirectConnectionState: StateFlow<WifiDirectConnectionState> = wifiDirectEngine.connectionState
+    val wifiDirectDiscoveredPeers: StateFlow<List<WifiDirectPeer>> = wifiDirectEngine.discoveredPeers
+    val isMerchantWifiAdvertising: StateFlow<Boolean> = wifiDirectEngine.isAdvertising
+
+    val qrScanState: StateFlow<QrScanState> = qrEngine.scanState
+
     private val _bluetoothPeers = MutableStateFlow<List<NearbyPeerDevice>>(emptyList())
     val bluetoothPeers: StateFlow<List<NearbyPeerDevice>> = _bluetoothPeers.asStateFlow()
 
@@ -211,9 +234,54 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     val supabaseAuthRepo = SupabaseAuthRepository()
     val supabaseDeviceRepo = SupabaseDeviceRepository()
 
+    fun registerUser(name: String, email: String, pass: String, role: UserRole, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val res = supabaseAuthRepo.signUp(email, pass, name, role.name)
+            if (res.isSuccess) {
+                val remoteUser = res.getOrNull()!!
+                currentUser.value = User(
+                    id = remoteUser.id,
+                    name = remoteUser.name,
+                    email = email,
+                    role = role,
+                    deviceId = remoteUser.id
+                )
+                _currentRole.value = role
+                onResult(true, "Registration successful! Logged in as ${remoteUser.name}")
+            } else {
+                onResult(false, res.exceptionOrNull()?.message ?: "Registration failed")
+            }
+        }
+    }
+
+    fun loginUser(email: String, pass: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val res = supabaseAuthRepo.signIn(email, pass)
+            if (res.isSuccess) {
+                val remoteUser = res.getOrNull()!!
+                val role = when (remoteUser.role) {
+                    "MERCHANT" -> UserRole.MERCHANT
+                    "ADMIN" -> UserRole.ADMIN
+                    else -> UserRole.BUYER
+                }
+                currentUser.value = User(
+                    id = remoteUser.id,
+                    name = remoteUser.name,
+                    email = email,
+                    role = role,
+                    deviceId = remoteUser.id
+                )
+                _currentRole.value = role
+                onResult(true, "Welcome back, ${remoteUser.name}!")
+            } else {
+                onResult(false, res.exceptionOrNull()?.message ?: "Login failed")
+            }
+        }
+    }
+
     // Supabase Connection Status
     private val _supabaseStatus = MutableStateFlow(
-        if (SupabaseClient.isConfigured()) "Connected" else "Local Offline Mode"
+        if (SupabaseClient.isConfigured()) "Connected (Supabase Configured)" else "Not Configured (Missing Supabase Keys)"
     )
     val supabaseStatus: StateFlow<String> = _supabaseStatus.asStateFlow()
 
@@ -407,6 +475,63 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         recomputeTrustDecision()
     }
 
+    fun createRazorpayMandate(maxAmount: Long = 2000L, onComplete: (com.example.engine.MandateDetails) -> Unit = {}) {
+        viewModelScope.launch {
+            val mandate = RazorpayService.createMandate(
+                buyerId = currentUser.value.id,
+                maxAmount = maxAmount
+            )
+            _buyerState.value = _buyerState.value.copy(
+                mandateReference = mandate.mandateId,
+                offlineLimit = mandate.maxMonthlyLimit
+            )
+            recomputeTrustDecision()
+            onComplete(mandate)
+        }
+    }
+
+    fun triggerInsufficientBalanceDemo() {
+        viewModelScope.launch {
+            val merchant = merchantsList[0]
+            val txId = "TXN-INSUFFICIENT-" + (100..999).random()
+            val amount = 89000L
+            val nonce = CryptoEngine.generateNonce()
+            val timestamp = System.currentTimeMillis()
+
+            val canonicalPayload = CryptoEngine.buildCanonicalPayload(
+                buyerId = "dev_buyer_01",
+                merchantId = merchant.merchantId,
+                amount = amount,
+                transactionId = txId,
+                nonce = nonce,
+                timestamp = timestamp,
+                mode = TransactionMode.AUTHORIZATION.name,
+                mandateReference = _buyerState.value.mandateReference
+            )
+            val sig = CryptoEngine.signPayload(canonicalPayload, keyPair.private)
+
+            val tx = Transaction(
+                transactionId = txId,
+                buyerId = "dev_buyer_01",
+                buyerName = "Ganesh",
+                merchantId = merchant.merchantId,
+                merchantName = merchant.businessName,
+                amount = amount,
+                currency = "INR",
+                mode = TransactionMode.AUTHORIZATION,
+                timestamp = timestamp,
+                nonce = nonce,
+                signature = sig,
+                status = TransactionStatus.OFFLINE_ACCEPTED,
+                createdAt = timestamp
+            )
+
+            database.transactionDao().insert(TransactionEntity.fromDomain(tx, isOfflineQueued = true))
+            _activeTransaction.value = tx
+            triggerReconciliationSync()
+        }
+    }
+
     fun setRole(role: UserRole) {
         _currentRole.value = role
     }
@@ -441,6 +566,138 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     fun setActiveTransaction(tx: Transaction) {
         _activeTransaction.value = tx
+    }
+
+    fun startBleScan() {
+        bluetoothEngine.startScan(_selectedMerchant.value.businessName)
+    }
+
+    fun stopBleScan() {
+        bluetoothEngine.stopScan()
+    }
+
+    fun connectToBleDevice(peer: NearbyPeerDevice) {
+        bluetoothEngine.connectToDevice(peer)
+    }
+
+    fun disconnectBleDevice() {
+        bluetoothEngine.disconnect()
+    }
+
+    fun startMerchantBleAdvertising(onPayloadNotification: (String) -> Unit = {}) {
+        val merchant = _selectedMerchant.value
+        bluetoothEngine.startMerchantAdvertising(merchant.businessName) { rawPayload ->
+            processIncomingGattPayload(rawPayload, onPayloadNotification)
+        }
+    }
+
+    fun stopMerchantBleAdvertising() {
+        bluetoothEngine.stopMerchantAdvertising()
+    }
+
+    fun startWifiDirectScan() {
+        wifiDirectEngine.startDiscovery(_selectedMerchant.value.businessName)
+    }
+
+    fun stopWifiDirectScan() {
+        wifiDirectEngine.stopDiscovery()
+    }
+
+    fun connectToWifiDirectPeer(peer: WifiDirectPeer) {
+        wifiDirectEngine.connectToPeer(peer)
+    }
+
+    fun disconnectWifiDirectPeer() {
+        wifiDirectEngine.removeGroup()
+    }
+
+    fun startMerchantWifiDirectBroadcasting(onPayloadNotification: (String) -> Unit = {}) {
+        val merchant = _selectedMerchant.value
+        wifiDirectEngine.startMerchantBroadcasting(merchant.businessName) { rawPayload ->
+            processIncomingGattPayload(rawPayload, onPayloadNotification)
+        }
+    }
+
+    fun stopMerchantWifiDirectBroadcasting() {
+        wifiDirectEngine.stopMerchantBroadcasting()
+    }
+
+    fun startQrScan() {
+        qrEngine.startScanning()
+    }
+
+    fun stopQrScan() {
+        qrEngine.stopScanning()
+    }
+
+    fun processScannedQrPayload(payloadStr: String) {
+        qrEngine.processScannedQrPayload(payloadStr, _selectedMerchant.value)
+    }
+
+    fun generateSignedTransactionQr(tx: Transaction): android.graphics.Bitmap? {
+        return qrEngine.generateSignedTransactionQr(tx)
+    }
+
+    fun generateMerchantReceiveQr(merchant: Merchant): android.graphics.Bitmap? {
+        return qrEngine.generateMerchantReceiveQr(merchant)
+    }
+
+    fun openAppSettings(context: Context) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", context.packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("TrustPayViewModel", "Failed to open settings: ${e.message}")
+        }
+    }
+
+    fun openUssdDialer(context: Context, onError: (String) -> Unit) {
+        try {
+            val ussdCode = "*99#"
+            val intent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:${Uri.encode(ussdCode)}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("TrustPayViewModel", "Failed to launch USSD dialer: ${e.message}")
+            onError("Unable to launch phone dialer. Your device may not support telephony calls.")
+        }
+    }
+
+    private fun processIncomingGattPayload(payload: String, onNotify: (String) -> Unit) {
+        val parts = payload.split("|")
+        if (parts.size >= 5 && parts[0] == "TPAY") {
+            val txId = parts[1]
+            val amount = parts[2].toLongOrNull() ?: 0L
+            val nonce = parts[3]
+            val sig = parts[4]
+
+            val tx = Transaction(
+                transactionId = txId,
+                buyerId = "dev_buyer_01",
+                buyerName = "Ganesh",
+                merchantId = _selectedMerchant.value.merchantId,
+                merchantName = _selectedMerchant.value.businessName,
+                amount = amount,
+                currency = "INR",
+                mode = TransactionMode.OFFLINE_VALUE,
+                timestamp = System.currentTimeMillis(),
+                nonce = nonce,
+                signature = sig,
+                status = TransactionStatus.OFFLINE_ACCEPTED,
+                createdAt = System.currentTimeMillis()
+            )
+
+            viewModelScope.launch {
+                database.transactionDao().insert(TransactionEntity.fromDomain(tx, isOfflineQueued = true))
+                _activeTransaction.value = tx
+                onNotify("Incoming BLE Payment Received: ₹$amount from Ganesh")
+            }
+        }
     }
 
     fun refreshPeersForMerchant(merchant: Merchant) {

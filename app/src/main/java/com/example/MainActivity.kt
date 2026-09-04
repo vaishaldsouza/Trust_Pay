@@ -1,6 +1,8 @@
 package com.example
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -34,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -132,6 +136,17 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
     val pendingOfflineCount by viewModel.pendingOfflineCount.collectAsState()
 
+    // BLE & Wi-Fi Direct State
+    val bleConnectionState by viewModel.bleConnectionState.collectAsState()
+    val bleDiscoveredDevices by viewModel.bleDiscoveredDevices.collectAsState()
+    val isMerchantBleAdvertising by viewModel.isMerchantBleAdvertising.collectAsState()
+
+    val wifiDirectConnectionState by viewModel.wifiDirectConnectionState.collectAsState()
+    val wifiDirectDiscoveredPeers by viewModel.wifiDirectDiscoveredPeers.collectAsState()
+    val isMerchantWifiAdvertising by viewModel.isMerchantWifiAdvertising.collectAsState()
+
+    val qrScanState by viewModel.qrScanState.collectAsState()
+
     // Language & Theme State
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -150,6 +165,12 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val coroutineScope = rememberCoroutineScope()
 
     var currentScreen by remember { mutableStateOf(ScreenTab.HOME) }
+    var showMicRationaleDialog by remember { mutableStateOf(false) }
+
+    val hasAudioPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
 
     // Permission launcher for microphone recording
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -161,7 +182,82 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
             }
         } else {
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("Microphone permission denied. You can tap quick prompt chips instead.")
+                snackbarHostState.showSnackbar("Microphone permission denied. Tap 'Open App Settings' to grant manually.")
+            }
+        }
+    }
+
+    if (showMicRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showMicRationaleDialog = false },
+            title = { Text("Microphone Permission Required", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("TrustPay Voice Assistant requires microphone access (RECORD_AUDIO) to process natural language voice commands in Hindi, English, Kannada, and Malayalam for hands-free offline payments and balance inquiries.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMicRationaleDialog = false
+                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                ) {
+                    Text("Grant Permission", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMicRationaleDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    val bleEnableLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        if (res.resultCode == ComponentActivity.RESULT_OK) {
+            viewModel.startBleScan()
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Bluetooth turn-on action was cancelled.")
+            }
+        }
+    }
+
+    val blePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.values.all { it }
+        if (granted) {
+            viewModel.startBleScan()
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Bluetooth permissions denied. You can tap 'Open App Settings' to grant manually.")
+            }
+        }
+    }
+
+    val wifiPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions.values.all { it }
+        if (granted) {
+            viewModel.startWifiDirectScan()
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Wi-Fi Direct permissions denied. You can tap 'Open App Settings' to grant manually.")
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startQrScan()
+        } else {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Camera permission denied. You can tap 'Open App Settings' to grant manually.")
             }
         }
     }
@@ -330,6 +426,11 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     onSyncClick = {
                                         viewModel.triggerReconciliationSync()
                                         currentScreen = ScreenTab.ACTIVITY
+                                    },
+                                    onOpenUssdClick = {
+                                        viewModel.openUssdDialer(context) { errorMsg ->
+                                            coroutineScope.launch { snackbarHostState.showSnackbar(errorMsg) }
+                                        }
                                     }
                                 )
                             }
@@ -351,7 +452,41 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     onTransactionClick = { tx ->
                                         viewModel.setActiveTransaction(tx)
                                         currentScreen = ScreenTab.CONFIRMATION
-                                    }
+                                    },
+                                    isBleAdvertising = isMerchantBleAdvertising,
+                                    onStartBleAdvertising = {
+                                        if (viewModel.bluetoothEngine.hasAdvertisePermission()) {
+                                            viewModel.startMerchantBleAdvertising { msg ->
+                                                coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+                                            }
+                                        } else {
+                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                                blePermissionLauncher.launch(
+                                                    arrayOf(
+                                                        Manifest.permission.BLUETOOTH_ADVERTISE,
+                                                        Manifest.permission.BLUETOOTH_CONNECT
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onStopBleAdvertising = { viewModel.stopMerchantBleAdvertising() },
+                                    isWifiAdvertising = isMerchantWifiAdvertising,
+                                    onStartWifiAdvertising = {
+                                        if (viewModel.wifiDirectEngine.hasRequiredPermissions()) {
+                                            viewModel.startMerchantWifiDirectBroadcasting { msg ->
+                                                coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+                                            }
+                                        } else {
+                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                                wifiPermissionLauncher.launch(arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES))
+                                            } else {
+                                                wifiPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                            }
+                                        }
+                                    },
+                                    onStopWifiAdvertising = { viewModel.stopMerchantWifiDirectBroadcasting() },
+                                    generateMerchantReceiveQr = { m -> viewModel.generateMerchantReceiveQr(m) }
                                 )
                             }
                             UserRole.ADMIN -> {
@@ -401,7 +536,59 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     }
                                 )
                             },
-                            walletBalance = walletBalance
+                            walletBalance = walletBalance,
+                            bleConnectionState = bleConnectionState,
+                            bleDiscoveredDevices = bleDiscoveredDevices,
+                            onStartBleScan = { viewModel.startBleScan() },
+                            onStopBleScan = { viewModel.stopBleScan() },
+                            onConnectBleDevice = { peer -> viewModel.connectToBleDevice(peer) },
+                            onDisconnectBleDevice = { viewModel.disconnectBleDevice() },
+                            onOpenSettings = { viewModel.openAppSettings(context) },
+                            onEnableBluetooth = {
+                                bleEnableLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                            },
+                            onRequestPermissions = {
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                    blePermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.BLUETOOTH_SCAN,
+                                            Manifest.permission.BLUETOOTH_CONNECT,
+                                            Manifest.permission.BLUETOOTH_ADVERTISE
+                                        )
+                                    )
+                                } else {
+                                    blePermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION
+                                        )
+                                    )
+                                }
+                            },
+                            wifiDirectConnectionState = wifiDirectConnectionState,
+                            wifiDirectDiscoveredPeers = wifiDirectDiscoveredPeers,
+                            onStartWifiDirectScan = { viewModel.startWifiDirectScan() },
+                            onStopWifiDirectScan = { viewModel.stopWifiDirectScan() },
+                            onConnectWifiDirectPeer = { peer -> viewModel.connectToWifiDirectPeer(peer) },
+                            onDisconnectWifiDirectPeer = { viewModel.disconnectWifiDirectPeer() },
+                            qrScanState = qrScanState,
+                            onStartQrScan = {
+                                if (viewModel.qrEngine.hasCameraPermission()) {
+                                    viewModel.startQrScan()
+                                } else {
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            },
+                            onStopQrScan = { viewModel.stopQrScan() },
+                            onProcessQrPayload = { payload -> viewModel.processScannedQrPayload(payload) },
+                            onRequestCameraPermission = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
+                            generateSignedTransactionQr = { tx -> viewModel.generateSignedTransactionQr(tx) },
+                            generateMerchantReceiveQr = { merchant -> viewModel.generateMerchantReceiveQr(merchant) },
+                            onOpenUssdClick = {
+                                viewModel.openUssdDialer(context) { errorMsg ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(errorMsg) }
+                                }
+                            }
                         )
                     }
 
@@ -497,7 +684,13 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                         RoleSelectorScreen(
                             currentRole = currentRole,
                             onRoleSelected = { viewModel.setRole(it) },
-                            onContinue = { currentScreen = ScreenTab.HOME }
+                            onContinue = { currentScreen = ScreenTab.HOME },
+                            onLogin = { email, pass, onResult ->
+                                viewModel.loginUser(email, pass, onResult)
+                            },
+                            onRegister = { name, email, pass, role, onResult ->
+                                viewModel.registerUser(name, email, pass, role, onResult)
+                            }
                         )
                     }
                 }
@@ -513,17 +706,12 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                 lastResponse = lastVoiceResponse,
                 lastActionResult = lastVoiceActionResult,
                 onToggleListening = {
-                    val hasAudioPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
                     if (hasAudioPermission) {
                         viewModel.toggleVoiceListening { errorMsg ->
                             coroutineScope.launch { snackbarHostState.showSnackbar(errorMsg) }
                         }
                     } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        showMicRationaleDialog = true
                     }
                 },
                 onPlayAudio = { viewModel.playLastVoiceResponse() },
@@ -537,7 +725,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                     viewModel.setSelectedMerchant(targetMerchant)
                     viewModel.setPaymentAmount(amount.toInt().toString())
                     currentScreen = ScreenTab.PAY
-                }
+                },
+                hasAudioPermission = hasAudioPermission,
+                onRequestAudioPermission = { showMicRationaleDialog = true },
+                onOpenSettings = { viewModel.openAppSettings(context) }
             )
         }
     }

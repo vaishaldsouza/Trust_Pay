@@ -27,13 +27,12 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +64,13 @@ fun MerchantHomeScreen(
     onAcceptPayment: (Transaction) -> Unit,
     onRejectPayment: (Transaction) -> Unit,
     onTransactionClick: (Transaction) -> Unit,
+    isBleAdvertising: Boolean = false,
+    onStartBleAdvertising: () -> Unit = {},
+    onStopBleAdvertising: () -> Unit = {},
+    isWifiAdvertising: Boolean = false,
+    onStartWifiAdvertising: () -> Unit = {},
+    onStopWifiAdvertising: () -> Unit = {},
+    generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -77,6 +83,7 @@ fun MerchantHomeScreen(
 
     var acceptedLocally by remember { mutableStateOf(false) }
     var rejectedLocally by remember { mutableStateOf(false) }
+    var showMerchantQrModal by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -133,6 +140,173 @@ fun MerchantHomeScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.secondary
                         )
+                    }
+                }
+            }
+        }
+
+        // BLE Terminal Advertising Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, if (isBleAdvertising) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(if (isBleAdvertising) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.FlashOn,
+                                contentDescription = null,
+                                tint = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "BLE Terminal Broadcasting",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                            Text(
+                                text = if (isBleAdvertising) "GATT Service 47a25000 Active • Discoverable by Buyers"
+                                else "Advertising Stopped • Tap switch to broadcast POS terminal",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = isBleAdvertising,
+                        onCheckedChange = { active ->
+                            if (active) onStartBleAdvertising() else onStopBleAdvertising()
+                        }
+                    )
+                }
+            }
+        }
+
+        // Wi-Fi Direct Terminal Broadcasting Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, if (isWifiAdvertising) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(if (isWifiAdvertising) colors.primary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Sensors,
+                                contentDescription = null,
+                                tint = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Wi-Fi Direct P2P Broadcasting",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                            Text(
+                                text = if (isWifiAdvertising) "DNS-SD Service _trustpay._tcp Active • TCP Server Port 8988"
+                                else "P2P Broadcasting Stopped • Tap switch to enable local TCP server",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = isWifiAdvertising,
+                        onCheckedChange = { active ->
+                            if (active) onStartWifiAdvertising() else onStopWifiAdvertising()
+                        }
+                    )
+                }
+            }
+        }
+
+        // Merchant Receive QR Code Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.QrCode,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Merchant Receive QR Code",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                            Text(
+                                text = "Display static QR code for buyer camera auto-selection",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = { showMerchantQrModal = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                    ) {
+                        Text("Show QR")
                     }
                 }
             }
@@ -467,5 +641,59 @@ fun MerchantHomeScreen(
         }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+
+    if (showMerchantQrModal) {
+        val qrBmp = remember(merchant) {
+            generateMerchantReceiveQr?.invoke(merchant)
+        }
+        AlertDialog(
+            onDismissRequest = { showMerchantQrModal = false },
+            title = {
+                Text("${merchant.businessName} - Receive QR", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (qrBmp != null) {
+                        Image(
+                            bitmap = qrBmp.asImageBitmap(),
+                            contentDescription = "Merchant Receive QR",
+                            modifier = Modifier
+                                .size(220.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, colors.outlineVariant, RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(220.dp)
+                                .background(Color.LightGray),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Generating Receive QR...")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        "Merchant ID: ${merchant.merchantId}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                    Text(
+                        "Buyers can scan this QR code using TrustPay camera for offline payment.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMerchantQrModal = false }) {
+                    Text("Close", fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }

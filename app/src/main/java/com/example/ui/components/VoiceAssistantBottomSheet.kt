@@ -78,6 +78,9 @@ fun VoiceAssistantBottomSheet(
     onStopAudio: () -> Unit,
     onExecuteSampleQuery: (String) -> Unit,
     onNavigateToPaymentConfirmed: (Double, String) -> Unit,
+    hasAudioPermission: Boolean = true,
+    onRequestAudioPermission: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -189,16 +192,23 @@ fun VoiceAssistantBottomSheet(
                         .clip(CircleShape)
                         .background(
                             if (isListening) colors.secondary
+                            else if (!hasAudioPermission) colors.errorContainer
                             else colors.primary
                         )
-                        .clickable { onToggleListening() }
+                        .clickable {
+                            if (!hasAudioPermission) {
+                                onRequestAudioPermission()
+                            } else {
+                                onToggleListening()
+                            }
+                        }
                         .testTag("voice_assistant_mic_button"),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isListening) Icons.Default.Mic else Icons.Default.Mic,
+                        imageVector = if (!hasAudioPermission) Icons.Default.MicOff else Icons.Default.Mic,
                         contentDescription = "Microphone",
-                        tint = Color.White,
+                        tint = if (!hasAudioPermission) colors.onErrorContainer else Color.White,
                         modifier = Modifier.size(32.dp)
                     )
                 }
@@ -208,6 +218,7 @@ fun VoiceAssistantBottomSheet(
 
             Text(
                 text = when {
+                    !hasAudioPermission -> "Microphone Permission Missing"
                     isListening -> strings.voiceListening
                     isSpeaking -> strings.voiceSpeaking
                     else -> strings.voiceTapToSpeak
@@ -216,8 +227,71 @@ fun VoiceAssistantBottomSheet(
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 ),
-                color = if (isListening) colors.secondary else colors.onSurfaceVariant
+                color = when {
+                    !hasAudioPermission -> colors.error
+                    isListening -> colors.secondary
+                    else -> colors.onSurfaceVariant
+                }
             )
+
+            // Permission Missing Banner / Card
+            if (!hasAudioPermission) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = colors.errorContainer.copy(alpha = 0.25f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.error.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                        .testTag("voice_permission_missing_card")
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.MicOff,
+                                contentDescription = null,
+                                tint = colors.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Microphone Permission Required",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.error
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Microphone access (RECORD_AUDIO) is required for speech recognition. You can grant permission or open app settings.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onOpenSettings,
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("voice_open_settings_button")
+                            ) {
+                                Text("Open App Settings", style = MaterialTheme.typography.labelSmall)
+                            }
+                            OutlinedButton(
+                                onClick = onRequestAudioPermission,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("voice_grant_permission_button")
+                            ) {
+                                Text("Grant Permission", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
 
             // Transcription Box
             if (transcription.isNotBlank()) {

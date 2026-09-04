@@ -232,32 +232,57 @@ class SyncEngine(
 
                 // Step 9 & 10: Settle via Razorpay Backend / Test-Mode
                 val settlementResult = RazorpayService.executeSettlement(domainTx)
-                settled++
-                currentStatus = TransactionStatus.SETTLED
+                if (settlementResult.isSuccess) {
+                    settled++
+                    currentStatus = TransactionStatus.SETTLED
 
-                // Step 11: Reduce/reconcile local offline exposure
-                onBuyerExposureUpdated(domainTx.amount)
+                    // Step 11: Reduce/reconcile local offline exposure
+                    onBuyerExposureUpdated(domainTx.amount)
 
-                val finalSettledTx = updatedWithFraud.copy(
-                    status = currentStatus,
-                    syncedAt = System.currentTimeMillis(),
-                    settledAt = settlementResult.timestamp,
-                    settlementRef = settlementResult.settlementRef
-                )
-
-                // Step 12: Update Room DB & Mark Synchronized
-                database.transactionDao().update(
-                    TransactionEntity.fromDomain(finalSettledTx, isOfflineQueued = false)
-                )
-
-                // Step 13: Update Supabase Status with Settlement Ref
-                if (SupabaseClient.isConfigured()) {
-                    supabaseTxRepo.updateTransactionStatus(
-                        transactionId = domainTx.transactionId,
+                    val finalSettledTx = updatedWithFraud.copy(
                         status = currentStatus,
-                        settlementRef = settlementResult.settlementRef,
-                        settledAt = settlementResult.timestamp
+                        syncedAt = System.currentTimeMillis(),
+                        settledAt = settlementResult.timestamp,
+                        settlementRef = settlementResult.settlementRef
                     )
+
+                    // Step 12: Update Room DB & Mark Synchronized
+                    database.transactionDao().update(
+                        TransactionEntity.fromDomain(finalSettledTx, isOfflineQueued = false)
+                    )
+
+                    // Step 13: Update Supabase Status with Settlement Ref
+                    if (SupabaseClient.isConfigured()) {
+                        supabaseTxRepo.updateTransactionStatus(
+                            transactionId = domainTx.transactionId,
+                            status = currentStatus,
+                            settlementRef = settlementResult.settlementRef,
+                            settledAt = settlementResult.timestamp
+                        )
+                    }
+                } else {
+                    // Settlement Failed (e.g. Insufficient Mandate Balance, Expired Mandate)
+                    reviewReq++
+                    flaggedId = domainTx.transactionId
+                    currentStatus = TransactionStatus.SETTLEMENT_FAILED
+
+                    val finalFailedTx = updatedWithFraud.copy(
+                        status = currentStatus,
+                        syncedAt = System.currentTimeMillis(),
+                        fraudReasons = listOf(settlementResult.note)
+                    )
+
+                    database.transactionDao().update(
+                        TransactionEntity.fromDomain(finalFailedTx, isOfflineQueued = false)
+                    )
+
+                    if (SupabaseClient.isConfigured()) {
+                        supabaseTxRepo.updateTransactionStatus(
+                            transactionId = domainTx.transactionId,
+                            status = currentStatus,
+                            settlementRef = settlementResult.settlementRef
+                        )
+                    }
                 }
             }
 
