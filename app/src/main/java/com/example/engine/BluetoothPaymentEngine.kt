@@ -332,7 +332,7 @@ class BluetoothPaymentEngine(private val context: Context) {
         _connectionState.value = BleConnectionState.Idle
     }
 
-    private val gattCallback = object : BluetoothGattCallback() {
+    private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         @SuppressLint("MissingPermission")
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             Log.d(TAG, "onConnectionStateChange: status=$status, newState=$newState")
