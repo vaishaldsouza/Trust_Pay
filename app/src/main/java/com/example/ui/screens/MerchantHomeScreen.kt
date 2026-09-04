@@ -37,9 +37,11 @@ import androidx.compose.material3.Text
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -78,6 +80,10 @@ fun MerchantHomeScreen(
     isWifiAdvertising: Boolean = false,
     onStartWifiAdvertising: () -> Unit = {},
     onStopWifiAdvertising: () -> Unit = {},
+    isUltrasonicListening: Boolean = false,
+    ultrasonicAudioLevel: Float = 0.0f,
+    onStartUltrasonicListening: () -> Unit = {},
+    onStopUltrasonicListening: () -> Unit = {},
     generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -261,6 +267,92 @@ fun MerchantHomeScreen(
                             if (active) onStartWifiAdvertising() else onStopWifiAdvertising()
                         }
                     )
+                }
+            }
+        }
+
+        // Acoustic POS (Ultrasonic Soundwave) Receiver Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, if (isUltrasonicListening) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isUltrasonicListening) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.GraphicEq,
+                                    contentDescription = null,
+                                    tint = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Acoustic POS (Soundwave Receiver)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary
+                                )
+                                Text(
+                                    text = if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK pulses"
+                                    else "Acoustic POS idle • Switch ON to accept payments via soundwaves",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = isUltrasonicListening,
+                            onCheckedChange = { active ->
+                                if (active) onStartUltrasonicListening() else onStopUltrasonicListening()
+                            }
+                        )
+                    }
+
+                    if (isUltrasonicListening) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Live Audio Level (Goertzel Filter FFT)",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${(ultrasonicAudioLevel * 100).toInt()}% Signal",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.secondary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { ultrasonicAudioLevel.coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = if (ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
+                            trackColor = colors.surfaceContainer
+                        )
+                    }
                 }
             }
         }

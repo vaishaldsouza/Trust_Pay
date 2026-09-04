@@ -89,6 +89,9 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     val qrScanState: StateFlow<QrScanState> = qrEngine.scanState
 
+    private val _ultrasonicAudioLevel = MutableStateFlow(0f)
+    val ultrasonicAudioLevel: StateFlow<Float> = _ultrasonicAudioLevel.asStateFlow()
+
     private val _bluetoothPeers = MutableStateFlow<List<NearbyPeerDevice>>(emptyList())
     val bluetoothPeers: StateFlow<List<NearbyPeerDevice>> = _bluetoothPeers.asStateFlow()
 
@@ -758,6 +761,39 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     fun generateMerchantReceiveQr(merchant: Merchant): android.graphics.Bitmap? {
         return qrEngine.generateMerchantReceiveQr(merchant)
+    }
+
+    fun startUltrasonicListening(onResult: (Boolean, String) -> Unit) {
+        ultrasonicEngine.startListeningAcoustic(
+            onAudioLevel = { level ->
+                _ultrasonicAudioLevel.value = level
+            },
+            onResult = { success, rawPayload, statusMsg ->
+                if (success) {
+                    viewModelScope.launch {
+                        val payloadPart = rawPayload.substringBefore("|SIG:")
+                        val sigPart = rawPayload.substringAfter("|SIG:", "")
+                        val isSigValid = CryptoEngine.verifySignature(
+                            publicKeyBase64 = keyPair.publicKeyBase64,
+                            payload = payloadPart,
+                            signatureBase64 = sigPart
+                        )
+
+                        if (isSigValid) {
+                            onResult(true, "Received & verified soundwave transaction payload via acoustic FSK!")
+                        } else {
+                            onResult(false, "Invalid Ed25519 signature on soundwave payload")
+                        }
+                    }
+                } else {
+                    onResult(false, statusMsg)
+                }
+            }
+        )
+    }
+
+    fun stopUltrasonicListening() {
+        ultrasonicEngine.stopListening()
     }
 
     fun setRazorpayBackendUrl(url: String) {

@@ -153,6 +153,9 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
 
     val qrScanState by viewModel.qrScanState.collectAsState()
 
+    val isUltrasonicListening by viewModel.isUltrasonicListening.collectAsState()
+    val ultrasonicAudioLevel by viewModel.ultrasonicAudioLevel.collectAsState()
+
     // Language & Theme State
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
@@ -519,6 +522,18 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                         }
                                     },
                                     onStopWifiAdvertising = { viewModel.stopMerchantWifiDirectBroadcasting() },
+                                    isUltrasonicListening = isUltrasonicListening,
+                                    ultrasonicAudioLevel = ultrasonicAudioLevel,
+                                    onStartUltrasonicListening = {
+                                        if (hasAudioPermission) {
+                                            viewModel.startUltrasonicListening { msg ->
+                                                coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+                                            }
+                                        } else {
+                                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        }
+                                    },
+                                    onStopUltrasonicListening = { viewModel.stopUltrasonicListening() },
                                     generateMerchantReceiveQr = { m -> viewModel.generateMerchantReceiveQr(m) }
                                 )
                             }
