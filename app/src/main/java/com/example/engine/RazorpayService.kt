@@ -6,17 +6,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.UUID
 
 data class MandateDetails(
-    val mandateId: String = "MND-9823-XYZ",
+    val mandateId: String = "MND-UNREACHABLE",
     val type: String = "Razorpay UPI Autopay Token",
-    val status: String = "ACTIVE",
-    val maxMonthlyLimit: Long = 2000L,
+    val status: String = "BACKEND_UNREACHABLE",
+    val maxMonthlyLimit: Long = 0L,
     val authorizedAccount: String = "ganesh@okhdfcbank",
     val validUntil: String = "Dec 2028"
 )
@@ -41,6 +39,9 @@ object RazorpayService {
     // Default backend proxy endpoint (Deployed Render URL for physical devices & demo)
     private var backendBaseUrl = RENDER_URL
 
+    // Increased timeout for Render cold-starts (35 seconds)
+    private const val TIMEOUT_MS = 35000
+
     fun getBackendBaseUrl(): String = backendBaseUrl
 
     fun setBackendBaseUrl(url: String) {
@@ -61,7 +62,8 @@ object RazorpayService {
 
     /**
      * Calls backend proxy POST /api/mandate/create to create a Razorpay token order.
-     * Honest Flow: Fails cleanly if backend proxy is unreachable.
+     * Uses 35s timeout to allow Render free-tier cold starts to wake up cleanly.
+     * Fails cleanly with BACKEND_UNREACHABLE if server is offline or times out.
      */
     suspend fun createMandate(buyerId: String = "dev_buyer_01", maxAmount: Long = 2000L): MandateDetails = withContext(Dispatchers.IO) {
         try {
@@ -69,8 +71,8 @@ object RazorpayService {
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
-                connectTimeout = 3000
-                readTimeout = 3000
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
                 doOutput = true
             }
 
@@ -81,35 +83,46 @@ object RazorpayService {
 
             OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
 
-            if (conn.responseCode == 200) {
-                val responseStr = conn.inputStream.bufferedReader().use(BufferedReader::readText)
-                val json = JSONObject(responseStr)
-                if (json.optBoolean("success")) {
-                    val mndRef = json.optString("mandateReference", "MND-9823-XYZ")
-                    val limit = json.optLong("maxMonthlyLimit", maxAmount)
-                    Log.i(TAG, "Successfully created Razorpay Mandate via Backend Proxy: $mndRef")
-                    return@withContext MandateDetails(
-                        mandateId = mndRef,
-                        type = json.optString("type", "Razorpay UPI Autopay Token"),
-                        status = json.optString("status", "ACTIVE"),
-                        maxMonthlyLimit = limit
-                    )
-                }
+            val responseCode = conn.responseCode
+            val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
+            val responseStr = stream?.bufferedReader()?.use(BufferedReader::readText) ?: "{}"
+            val json = JSONObject(responseStr)
+
+            if (responseCode in 200..299 && json.optBoolean("success")) {
+                val mndRef = json.optString("mandateReference", "MND-UNREACHABLE")
+                val limit = json.optLong("maxMonthlyLimit", maxAmount)
+                Log.i(TAG, "Successfully created Razorpay Mandate via Backend Proxy: $mndRef")
+                return@withContext MandateDetails(
+                    mandateId = mndRef,
+                    type = json.optString("type", "Razorpay UPI Autopay Token"),
+                    status = json.optString("status", "ACTIVE"),
+                    maxMonthlyLimit = limit
+                )
+            } else {
+                val errorMsg = json.optString("error", "Mandate creation failed")
+                Log.e(TAG, "Mandate creation failed: $errorMsg")
+                return@withContext MandateDetails(
+                    mandateId = "MND-UNREACHABLE",
+                    type = "Razorpay UPI Autopay Token",
+                    status = "MANDATE_CREATION_FAILED",
+                    maxMonthlyLimit = 0L
+                )
             }
         } catch (e: Exception) {
             Log.e(TAG, "Backend proxy unreachable for mandate creation: ${e.message}")
+            return@withContext MandateDetails(
+                mandateId = "MND-UNREACHABLE",
+                type = "Razorpay UPI Autopay Token",
+                status = "BACKEND_UNREACHABLE",
+                maxMonthlyLimit = 0L
+            )
         }
-        return@withContext MandateDetails(
-            mandateId = "MND-UNREACHABLE",
-            type = "Razorpay UPI Autopay Token",
-            status = "BACKEND_UNREACHABLE",
-            maxMonthlyLimit = 0L
-        )
     }
 
     /**
      * Executes settlement draw-down against stored mandate via HTTPS backend proxy.
-     * Honest Flow: Re-validates Ed25519 signature server-side.
+     * Uses 35s timeout to allow Render free-tier cold starts to wake up cleanly.
+     * Re-validates Ed25519 signature server-side.
      * Returns SETTLEMENT_FAILED / BACKEND_UNREACHABLE when proxy is offline. Never fabricates success.
      */
     suspend fun executeSettlement(transaction: Transaction): SettlementResult = withContext(Dispatchers.IO) {
@@ -118,8 +131,8 @@ object RazorpayService {
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
-                connectTimeout = 4000
-                readTimeout = 4000
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
                 doOutput = true
             }
 
@@ -131,7 +144,7 @@ object RazorpayService {
                 put("nonce", transaction.nonce)
                 put("timestamp", transaction.timestamp)
                 put("mode", transaction.mode.name)
-                put("mandateReference", "MND-9823-XYZ")
+                put("mandateReference", transaction.mandateReference ?: "MND-UNREACHABLE")
                 put("signature", transaction.signature)
             }
 
@@ -143,8 +156,8 @@ object RazorpayService {
             val json = JSONObject(responseStr)
 
             if (responseCode in 200..299 && json.optBoolean("success")) {
-                val paymentId = json.optString("paymentId", "pay_rzp_" + UUID.randomUUID().toString().take(8))
-                val settlementRef = json.optString("settlementRef", "set_rzp_" + UUID.randomUUID().toString().take(8))
+                val paymentId = json.optString("paymentId", "")
+                val settlementRef = json.optString("settlementRef", "")
                 Log.i(TAG, "[$LABEL] Settlement SETTLED for ${transaction.transactionId} -> Ref: $settlementRef")
                 return@withContext SettlementResult(
                     isSuccess = true,
@@ -154,13 +167,13 @@ object RazorpayService {
                     note = "$LABEL | Razorpay Order Charge Executed"
                 )
             } else {
-                val reason = json.optString("reason", "INSUFFICIENT_MANDATE_BALANCE")
+                val reason = json.optString("reason", "SETTLEMENT_FAILED")
                 val errorMsg = json.optString("error", "Mandate settlement declined by Razorpay API.")
                 Log.e(TAG, "[$LABEL] Settlement FAILED for ${transaction.transactionId}: $reason - $errorMsg")
                 return@withContext SettlementResult(
                     isSuccess = false,
-                    settlementRef = "failed_ref_${transaction.transactionId}",
-                    paymentId = "failed_pay_id",
+                    settlementRef = "UNREACHABLE",
+                    paymentId = "NONE",
                     amount = transaction.amount,
                     note = errorMsg,
                     failureReason = reason
