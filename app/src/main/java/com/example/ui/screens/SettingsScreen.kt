@@ -77,6 +77,7 @@ fun SettingsScreen(
     pendingTransactionsCount: Int = 0,
     razorpayBackendUrl: String = com.example.engine.RazorpayService.RENDER_URL,
     onSelectRazorpayBackendUrl: (String) -> Unit = {},
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -768,6 +769,43 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 18.sp),
                         color = colors.onSurfaceVariant
                     )
+                }
+            }
+        }
+
+        // 10. Session & Logout Section Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, colors.error.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "Account Session",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "End your active session or switch to another user account. Returning will require logging in or choosing a demo role.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedButton(
+                        onClick = onLogout,
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = colors.error
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, colors.error),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Logout / Switch Account", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

@@ -63,10 +63,12 @@ import com.example.ui.components.TrustPayTopBar
 import com.example.ui.components.VoiceAssistantBottomSheet
 import com.example.ui.screens.ActivitySyncScreen
 import com.example.ui.screens.AdminHomeScreen
+import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.BuyerHomeScreen
 import com.example.ui.screens.MerchantHomeScreen
 import com.example.ui.screens.PaymentConfirmationScreen
 import com.example.ui.screens.PaymentScreen
+import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.RoleSelectorScreen
 import com.example.ui.screens.SecurityCenterScreen
 import com.example.ui.screens.SettingsScreen
@@ -81,13 +83,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.NavigationBarItemColors
 
 enum class ScreenTab {
+    AUTH,
     HOME,
     PAY,
     ACTIVITY,
     SECURITY,
     SETTINGS,
     ROLE_SELECTOR,
-    CONFIRMATION
+    CONFIRMATION,
+    PROFILE
 }
 
 class MainActivity : ComponentActivity() {
@@ -118,6 +122,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val context = LocalContext.current
     val isOnline by viewModel.isOnline.collectAsState()
     val currentRole by viewModel.currentRole.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
     val buyerState by viewModel.buyerState.collectAsState()
     val walletBalance by viewModel.walletBalance.collectAsState()
     val transactions by viewModel.allTransactions.collectAsState()
@@ -165,7 +170,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    var currentScreen by remember { mutableStateOf(ScreenTab.HOME) }
+    val isRealSession by viewModel.isRealSession.collectAsState()
+    var currentScreen by remember { mutableStateOf(if (isRealSession) ScreenTab.HOME else ScreenTab.AUTH) }
     var showMicRationaleDialog by remember { mutableStateOf(false) }
 
     val hasAudioPermission = ContextCompat.checkSelfPermission(
@@ -266,7 +272,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            if (currentScreen != ScreenTab.ROLE_SELECTOR) {
+            if (currentScreen != ScreenTab.AUTH && currentScreen != ScreenTab.ROLE_SELECTOR && currentScreen != ScreenTab.PROFILE) {
                 Column {
                     TrustPayTopBar(
                         isOnline = isOnline,
@@ -280,7 +286,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             }
                         },
                         currentRole = currentRole,
-                        onRoleClick = { currentScreen = ScreenTab.ROLE_SELECTOR },
+                        onOpenProfile = { currentScreen = ScreenTab.PROFILE },
+                        onLogout = { viewModel.logout { currentScreen = ScreenTab.AUTH } },
                         onMicClick = { viewModel.openVoiceAssistant() },
                         themeMode = themeMode,
                         onToggleTheme = {
@@ -297,7 +304,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
             }
         },
         bottomBar = {
-            if (currentScreen != ScreenTab.ROLE_SELECTOR && currentScreen != ScreenTab.CONFIRMATION) {
+            if (currentScreen != ScreenTab.AUTH && currentScreen != ScreenTab.ROLE_SELECTOR && currentScreen != ScreenTab.CONFIRMATION && currentScreen != ScreenTab.PROFILE) {
                 NavigationBar(
                     containerColor = colors.surfaceLowest,
                     tonalElevation = 4.dp,
@@ -411,6 +418,31 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
         ) {
             Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
                 when (screen) {
+                    ScreenTab.AUTH -> {
+                        AuthScreen(
+                            onLogin = { email, pass, onResult ->
+                                viewModel.loginUser(email, pass) { success, msg ->
+                                    if (success) {
+                                        currentScreen = ScreenTab.HOME
+                                    }
+                                    onResult(success, msg)
+                                }
+                            },
+                            onRegister = { name, email, pass, role, onResult ->
+                                viewModel.registerUser(name, email, pass, role) { success, msg ->
+                                    if (success) {
+                                        currentScreen = ScreenTab.HOME
+                                    }
+                                    onResult(success, msg)
+                                }
+                            },
+                            onDemoSelect = { role ->
+                                viewModel.selectDemoRole(role)
+                                currentScreen = ScreenTab.HOME
+                            }
+                        )
+                    }
+
                     ScreenTab.HOME -> {
                         when (currentRole) {
                             UserRole.BUYER -> {
@@ -679,7 +711,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             lastSyncTimestamp = lastSyncTimestamp,
                             pendingTransactionsCount = pendingOfflineCount,
                             razorpayBackendUrl = razorpayBackendUrl,
-                            onSelectRazorpayBackendUrl = { url -> viewModel.setRazorpayBackendUrl(url) }
+                            onSelectRazorpayBackendUrl = { url -> viewModel.setRazorpayBackendUrl(url) },
+                            onLogout = {
+                                viewModel.logout { currentScreen = ScreenTab.AUTH }
+                            }
                         )
                     }
 
@@ -694,6 +729,17 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             onRegister = { name, email, pass, role, onResult ->
                                 viewModel.registerUser(name, email, pass, role, onResult)
                             }
+                        )
+                    }
+
+                    ScreenTab.PROFILE -> {
+                        ProfileScreen(
+                            user = currentUser,
+                            isRealSession = isRealSession,
+                            onSaveProfile = { newName, onResult ->
+                                viewModel.updateUserProfile(newName, onResult)
+                            },
+                            onBack = { currentScreen = ScreenTab.HOME }
                         )
                     }
                 }

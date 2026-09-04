@@ -118,6 +118,10 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
+    // Real user session state
+    private val _isRealSession = MutableStateFlow(prefsRepo.isRealSession())
+    val isRealSession: StateFlow<Boolean> = _isRealSession.asStateFlow()
+
     // Current active role
     private val _currentRole = MutableStateFlow(UserRole.BUYER)
     val currentRole: StateFlow<UserRole> = _currentRole.asStateFlow()
@@ -133,6 +137,35 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             riskScore = 12
         )
     )
+
+    init {
+        if (prefsRepo.isRealSession()) {
+            val savedUserId = prefsRepo.getSavedUserId() ?: "dev_buyer_01"
+            val savedName = prefsRepo.getSavedUserName() ?: "User"
+            val savedEmail = prefsRepo.getSavedUserEmail() ?: ""
+            val savedRoleStr = prefsRepo.getSavedUserRole() ?: "BUYER"
+            val savedToken = prefsRepo.getSavedAuthToken() ?: ""
+
+            val role = when (savedRoleStr) {
+                "MERCHANT" -> UserRole.MERCHANT
+                "ADMIN" -> UserRole.ADMIN
+                else -> UserRole.BUYER
+            }
+
+            SupabaseClient.authToken = savedToken
+            SupabaseClient.currentUserId = savedUserId
+
+            currentUser.value = User(
+                id = savedUserId,
+                name = savedName,
+                email = savedEmail,
+                role = role,
+                deviceId = savedUserId
+            )
+            _currentRole.value = role
+            _isRealSession.value = true
+        }
+    }
 
     // Seeded Buyer state
     private val _buyerState = MutableStateFlow(
@@ -251,6 +284,9 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
                     deviceId = remoteUser.id
                 )
                 _currentRole.value = role
+                _isRealSession.value = true
+                val token = SupabaseClient.authToken ?: ""
+                prefsRepo.saveUserSession(remoteUser.id, remoteUser.name, email, role.name, token)
                 onResult(true, "Registration successful! Logged in as ${remoteUser.name}")
             } else {
                 onResult(false, res.exceptionOrNull()?.message ?: "Registration failed")
@@ -276,9 +312,87 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
                     deviceId = remoteUser.id
                 )
                 _currentRole.value = role
+                _isRealSession.value = true
+                val token = SupabaseClient.authToken ?: ""
+                prefsRepo.saveUserSession(remoteUser.id, remoteUser.name, email, role.name, token)
                 onResult(true, "Welcome back, ${remoteUser.name}!")
             } else {
                 onResult(false, res.exceptionOrNull()?.message ?: "Login failed")
+            }
+        }
+    }
+
+    fun selectDemoRole(role: UserRole) {
+        prefsRepo.clearUserSession()
+        _isRealSession.value = false
+        _currentRole.value = role
+        when (role) {
+            UserRole.BUYER -> {
+                currentUser.value = User(
+                    id = "dev_buyer_01",
+                    name = "Ganesh",
+                    email = "ganesh@buyer.trustpay.in",
+                    role = UserRole.BUYER,
+                    deviceId = "dev_buyer_01",
+                    riskScore = 12
+                )
+            }
+            UserRole.MERCHANT -> {
+                currentUser.value = User(
+                    id = "merch_artisan_42",
+                    name = "Artisan Roasters",
+                    email = "contact@artisanroasters.in",
+                    role = UserRole.MERCHANT,
+                    deviceId = "merch_artisan_42",
+                    riskScore = 8
+                )
+            }
+            UserRole.ADMIN -> {
+                currentUser.value = User(
+                    id = "admin_01",
+                    name = "TrustPay Admin",
+                    email = "admin@trustpay.in",
+                    role = UserRole.ADMIN,
+                    deviceId = "admin_01",
+                    riskScore = 0
+                )
+            }
+        }
+    }
+
+    fun logout(onLoggedOut: () -> Unit = {}) {
+        supabaseAuthRepo.signOut()
+        prefsRepo.clearUserSession()
+        _isRealSession.value = false
+        _currentRole.value = UserRole.BUYER
+        currentUser.value = User(
+            id = "dev_buyer_01",
+            name = "Ganesh",
+            email = "ganesh@buyer.trustpay.in",
+            role = UserRole.BUYER,
+            deviceId = "dev_buyer_01",
+            riskScore = 12
+        )
+        onLoggedOut()
+    }
+
+    fun updateUserProfile(name: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val curr = currentUser.value
+            val updatedUser = curr.copy(name = name)
+            currentUser.value = updatedUser
+
+            if (_isRealSession.value) {
+                val token = SupabaseClient.authToken ?: ""
+                prefsRepo.saveUserSession(curr.id, name, curr.email, curr.role.name, token)
+                val dbRes = supabaseAuthRepo.createPublicUser(curr.id, name, curr.role.name)
+                if (dbRes.isSuccess) {
+                    onResult(true, "Profile updated successfully!")
+                } else {
+                    onResult(true, "Profile saved locally")
+                }
+            } else {
+                onResult(true, "Demo profile updated successfully!")
             }
         }
     }

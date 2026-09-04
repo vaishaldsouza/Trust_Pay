@@ -29,18 +29,27 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,7 +76,8 @@ fun TrustPayTopBar(
     isOnline: Boolean,
     onToggleConnection: () -> Unit,
     currentRole: UserRole,
-    onRoleClick: () -> Unit,
+    onOpenProfile: () -> Unit = {},
+    onLogout: () -> Unit = {},
     onMicClick: () -> Unit,
     themeMode: AppThemeMode,
     onToggleTheme: () -> Unit,
@@ -76,6 +86,8 @@ fun TrustPayTopBar(
     val strings = LocalAppStrings.current
     val language = LocalAppLanguage.current
     val colors = LocalAppColors.current
+
+    var showProfileMenu by remember { mutableStateOf(false) }
 
     Surface(
         color = colors.surfaceLowest,
@@ -94,8 +106,7 @@ fun TrustPayTopBar(
             ) {
             // Brand Logo & Title
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { onRoleClick() }
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -133,7 +144,7 @@ fun TrustPayTopBar(
                 }
             }
 
-            // Right side: Voice Assistant Mic Button + Switch Theme Button + Connection Simulator Pill + Role Switcher
+            // Right side: Voice Assistant Mic Button + Switch Theme Button + Connection Simulator Pill + Profile Icon Menu
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Voice Assistant Launcher Icon Button
                 Box(
@@ -221,29 +232,64 @@ fun TrustPayTopBar(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Role badge button
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainer)
-                        .clickable { onRoleClick() }
-                        .padding(horizontal = 9.dp, vertical = 5.dp)
-                        .testTag("role_switcher_pill"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = currentRole.name.take(3),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        ),
-                        color = colors.onSurface
-                    )
+                // Profile Avatar Icon Button with Dropdown Menu
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(colors.primaryContainer)
+                            .border(1.dp, colors.primary.copy(alpha = 0.4f), CircleShape)
+                            .clickable { showProfileMenu = true }
+                            .testTag("topbar_profile_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "User Profile",
+                            tint = colors.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showProfileMenu,
+                        onDismissRequest = { showProfileMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Profile", fontWeight = FontWeight.Medium) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = colors.primary
+                                )
+                            },
+                            onClick = {
+                                showProfileMenu = false
+                                onOpenProfile()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Logout", fontWeight = FontWeight.Medium, color = colors.error) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ExitToApp,
+                                    contentDescription = null,
+                                    tint = colors.error
+                                )
+                            },
+                            onClick = {
+                                showProfileMenu = false
+                                onLogout()
+                            }
+                        )
                     }
                 }
             }
         }
     }
+}
 }
 
 @Composable
