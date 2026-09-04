@@ -239,10 +239,11 @@ fun TrustPayTopBar(
                         ),
                         color = colors.onSurface
                     )
+                    }
+                }
             }
         }
     }
-}
 }
 
 @Composable
