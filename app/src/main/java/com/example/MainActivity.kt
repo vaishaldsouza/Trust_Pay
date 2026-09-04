@@ -216,7 +216,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val bleEnableLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { res ->
-        if (res.resultCode == ComponentActivity.RESULT_OK) {
+        if (res.resultCode == android.app.Activity.RESULT_OK) {
             viewModel.startBleScan()
         } else {
             coroutineScope.launch {

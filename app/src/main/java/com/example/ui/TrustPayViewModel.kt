@@ -45,6 +45,7 @@ import com.example.engine.TrustAgent
 import com.example.engine.TrustDecision
 import com.example.engine.VoiceActionResult
 import com.example.engine.VoiceAssistantEngine
+import com.example.engine.UltrasonicEngine
 import com.example.util.AppLanguage
 import com.example.util.AppThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -710,8 +711,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshPeersForMerchant(merchant: Merchant) {
         viewModelScope.launch {
-            _bluetoothPeers.value = bluetoothEngine.scanForReceivers(merchant.businessName) {}
-            _wifiPeers.value = wifiDirectEngine.discoverPeers(merchant.businessName) {}
+            bluetoothEngine.startScan(merchant.businessName)
+            wifiDirectEngine.startDiscovery(merchant.businessName)
         }
     }
 
@@ -810,43 +811,39 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             // Execute hardware physical layer if offline
             if (!isOnlineNow) {
                 val wirePacket = "TPAY|$txId|$amount|$nonce|$effectiveSignature"
-                when (offlineOption) {
-                    "Bluetooth" -> {
-                        val peers = _bluetoothPeers.value.ifEmpty {
-                            bluetoothEngine.scanForReceivers(merchant.businessName) {}
+                viewModelScope.launch {
+                    when (offlineOption) {
+                        "Bluetooth" -> {
+                            val target = bleDiscoveredDevices.value.firstOrNull() ?: NearbyPeerDevice(
+                                deviceId = "TPAY:BLE:01",
+                                name = "${merchant.businessName} POS",
+                                rssi = -42,
+                                isPaired = true,
+                                transportType = "BLE GATT"
+                            )
+                            bluetoothEngine.transmitPayload(target, wirePacket) { progress, status ->
+                                _hardwareTransmissionProgress.value = progress
+                                _hardwareTransmissionStatus.value = status
+                            }
                         }
-                        val target = peers.firstOrNull() ?: NearbyPeerDevice(
-                            deviceId = "TPAY:BLE:01",
-                            name = "${merchant.businessName} POS",
-                            rssi = -42,
-                            isPaired = true,
-                            transportType = "BLE GATT"
-                        )
-                        bluetoothEngine.transmitPayload(target, wirePacket) { progress, status ->
-                            _hardwareTransmissionProgress.value = progress
-                            _hardwareTransmissionStatus.value = status
+                        "Wi-Fi Direct" -> {
+                            val target = wifiDirectDiscoveredPeers.value.firstOrNull() ?: WifiDirectPeer(
+                                peerId = "P2P:01",
+                                deviceName = "${merchant.businessName}-DirectPOS",
+                                ipAddress = "192.168.49.1",
+                                status = "Connected",
+                                groupOwner = true
+                            )
+                            wifiDirectEngine.transmitOverP2pSocket(target, wirePacket) { progress, status ->
+                                _hardwareTransmissionProgress.value = progress
+                                _hardwareTransmissionStatus.value = status
+                            }
                         }
-                    }
-                    "Wi-Fi Direct" -> {
-                        val peers = _wifiPeers.value.ifEmpty {
-                            wifiDirectEngine.discoverPeers(merchant.businessName) {}
-                        }
-                        val target = peers.firstOrNull() ?: WifiDirectPeer(
-                            peerId = "P2P:01",
-                            deviceName = "${merchant.businessName}-DirectPOS",
-                            ipAddress = "192.168.49.1",
-                            status = "Connected",
-                            groupOwner = true
-                        )
-                        wifiDirectEngine.transmitOverP2pSocket(target, wirePacket) { progress, status ->
-                            _hardwareTransmissionProgress.value = progress
-                            _hardwareTransmissionStatus.value = status
-                        }
-                    }
-                    "Soundwave" -> {
-                        ultrasonicEngine.transmitPayloadAcoustic(wirePacket) { progress, status ->
-                            _hardwareTransmissionProgress.value = progress
-                            _hardwareTransmissionStatus.value = status
+                        "Soundwave" -> {
+                            ultrasonicEngine.transmitPayloadAcoustic(wirePacket) { progress, status ->
+                                _hardwareTransmissionProgress.value = progress
+                                _hardwareTransmissionStatus.value = status
+                            }
                         }
                     }
                 }
