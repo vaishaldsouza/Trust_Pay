@@ -117,6 +117,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     private val _razorpayBackendUrl = MutableStateFlow(RazorpayService.getBackendBaseUrl())
     val razorpayBackendUrl: StateFlow<String> = _razorpayBackendUrl.asStateFlow()
 
+    val isUltrasonicListening: StateFlow<Boolean> = ultrasonicEngine.isListeningState
+
     // Global connection state: ONLINE vs OFFLINE
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
@@ -774,9 +776,9 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
                         val payloadPart = rawPayload.substringBefore("|SIG:")
                         val sigPart = rawPayload.substringAfter("|SIG:", "")
                         val isSigValid = CryptoEngine.verifySignature(
-                            publicKeyBase64 = keyPair.publicKeyBase64,
                             payload = payloadPart,
-                            signatureBase64 = sigPart
+                            signatureBase64 = sigPart,
+                            publicKey = CryptoEngine.getOrCreateBuyerKeyPair().public
                         )
 
                         if (isSigValid) {

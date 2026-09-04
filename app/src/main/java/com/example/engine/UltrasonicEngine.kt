@@ -11,6 +11,9 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.nio.charset.StandardCharsets
@@ -46,6 +49,9 @@ class UltrasonicEngine(private val context: Context) {
     private var listeningJob: Job? = null
     private var isTransmitting = false
     private var isListening = false
+
+    private val _isListeningState = MutableStateFlow(false)
+    val isListeningState: StateFlow<Boolean> = _isListeningState.asStateFlow()
 
     /**
      * Synthesizes and plays real high-frequency audio wave via device speaker.
@@ -193,6 +199,7 @@ class UltrasonicEngine(private val context: Context) {
     ) {
         stopListening()
         isListening = true
+        _isListeningState.value = true
 
         listeningJob = GlobalScope.launch(Dispatchers.IO) {
             try {
@@ -370,6 +377,7 @@ class UltrasonicEngine(private val context: Context) {
 
     fun stopListening() {
         isListening = false
+        _isListeningState.value = false
         listeningJob?.cancel()
         listeningJob = null
         try {

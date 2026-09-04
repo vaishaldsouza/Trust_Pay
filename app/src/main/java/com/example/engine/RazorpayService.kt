@@ -144,7 +144,7 @@ object RazorpayService {
                 put("nonce", transaction.nonce)
                 put("timestamp", transaction.timestamp)
                 put("mode", transaction.mode.name)
-                put("mandateReference", transaction.mandateReference ?: "MND-UNREACHABLE")
+                put("mandateReference", "MND-9823-XYZ")
                 put("signature", transaction.signature)
             }
 

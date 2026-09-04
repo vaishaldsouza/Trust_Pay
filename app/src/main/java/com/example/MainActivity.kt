@@ -526,7 +526,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     ultrasonicAudioLevel = ultrasonicAudioLevel,
                                     onStartUltrasonicListening = {
                                         if (hasAudioPermission) {
-                                            viewModel.startUltrasonicListening { msg ->
+                                            viewModel.startUltrasonicListening { success, msg ->
                                                 coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
                                             }
                                         } else {
