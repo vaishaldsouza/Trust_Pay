@@ -58,6 +58,10 @@ import com.example.util.AppThemeMode
 import com.example.util.LocalAppLanguage
 import com.example.util.LocalAppStrings
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+
 @Composable
 fun TrustPayTopBar(
     isOnline: Boolean,
@@ -78,13 +82,16 @@ fun TrustPayTopBar(
         shadowElevation = 1.dp,
         modifier = modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // Brand Logo & Title
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -232,10 +239,10 @@ fun TrustPayTopBar(
                         ),
                         color = colors.onSurface
                     )
-                }
             }
         }
     }
+}
 }
 
 @Composable

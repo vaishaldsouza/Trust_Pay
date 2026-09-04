@@ -53,6 +53,10 @@ import com.example.ui.theme.LocalAppColors
 import com.example.util.LocalAppLanguage
 import com.example.util.LocalAppStrings
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+
 @Composable
 fun RoleSelectorScreen(
     currentRole: UserRole,
@@ -77,6 +81,7 @@ fun RoleSelectorScreen(
         modifier = modifier
             .fillMaxSize()
             .background(colors.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
