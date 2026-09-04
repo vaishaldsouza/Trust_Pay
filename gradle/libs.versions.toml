@@ -42,6 +42,8 @@ googleServices = "4.5.0"
 credentials = "1.5.0"
 googleid = "1.1.1"
 zxingCore = "3.5.3"
+workRuntime = "2.9.1"
+
 
 [libraries]
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
