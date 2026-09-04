@@ -350,7 +350,7 @@ class BluetoothPaymentEngine(private val context: Context) {
                         withContext(Dispatchers.Main) {
                             _connectionState.value = BleConnectionState.Connecting
                         }
-                        activeGatt = dev.connectGatt(context, false, this, BluetoothDevice.TRANSPORT_LE)
+                        activeGatt = dev.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
                     }
                 }
                 return
