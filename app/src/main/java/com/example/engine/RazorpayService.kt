@@ -35,13 +35,26 @@ object RazorpayService {
     private const val TAG = "TrustPayRazorpay"
     const val LABEL = "Razorpay Real Test-Mode Proxy"
 
-    // Default backend proxy endpoint (10.0.2.2 maps to host localhost in Android emulator)
-    private var backendBaseUrl = "http://10.0.2.2:3000"
+    const val RENDER_URL = "https://trust-pay-j0dh.onrender.com"
+    const val LOCAL_EMULATOR_URL = "http://10.0.2.2:3000"
+
+    // Default backend proxy endpoint (Deployed Render URL for physical devices & demo)
+    private var backendBaseUrl = RENDER_URL
+
+    fun getBackendBaseUrl(): String = backendBaseUrl
 
     fun setBackendBaseUrl(url: String) {
         if (url.isNotBlank()) {
             backendBaseUrl = url.trimEnd('/')
         }
+    }
+
+    fun useRenderBackend() {
+        backendBaseUrl = RENDER_URL
+    }
+
+    fun useLocalEmulatorBackend() {
+        backendBaseUrl = LOCAL_EMULATOR_URL
     }
 
     fun getActiveMandate(): MandateDetails = MandateDetails()

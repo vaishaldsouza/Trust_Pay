@@ -135,6 +135,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
     val pendingOfflineCount by viewModel.pendingOfflineCount.collectAsState()
+    val razorpayBackendUrl by viewModel.razorpayBackendUrl.collectAsState()
 
     // BLE & Wi-Fi Direct State
     val bleConnectionState by viewModel.bleConnectionState.collectAsState()
@@ -676,7 +677,9 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             },
                             supabaseStatus = supabaseStatus,
                             lastSyncTimestamp = lastSyncTimestamp,
-                            pendingTransactionsCount = pendingOfflineCount
+                            pendingTransactionsCount = pendingOfflineCount,
+                            razorpayBackendUrl = razorpayBackendUrl,
+                            onSelectRazorpayBackendUrl = { url -> viewModel.setRazorpayBackendUrl(url) }
                         )
                     }
 

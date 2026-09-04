@@ -110,6 +110,9 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     val syncState: StateFlow<SyncProgressState> = syncEngine.syncState
 
+    private val _razorpayBackendUrl = MutableStateFlow(RazorpayService.getBackendBaseUrl())
+    val razorpayBackendUrl: StateFlow<String> = _razorpayBackendUrl.asStateFlow()
+
     // Global connection state: ONLINE vs OFFLINE
     private val _isOnline = MutableStateFlow(true)
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
@@ -640,6 +643,11 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     fun generateMerchantReceiveQr(merchant: Merchant): android.graphics.Bitmap? {
         return qrEngine.generateMerchantReceiveQr(merchant)
+    }
+
+    fun setRazorpayBackendUrl(url: String) {
+        RazorpayService.setBackendBaseUrl(url)
+        _razorpayBackendUrl.value = RazorpayService.getBackendBaseUrl()
     }
 
     fun openAppSettings(context: Context) {

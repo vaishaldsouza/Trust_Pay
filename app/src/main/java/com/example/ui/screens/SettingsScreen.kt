@@ -75,6 +75,8 @@ fun SettingsScreen(
     supabaseStatus: String = "Connected",
     lastSyncTimestamp: Long? = null,
     pendingTransactionsCount: Int = 0,
+    razorpayBackendUrl: String = com.example.engine.RazorpayService.RENDER_URL,
+    onSelectRazorpayBackendUrl: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -465,6 +467,68 @@ fun SettingsScreen(
                                 color = colors.primary
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Column {
+                        Text(
+                            text = "Razorpay Backend Proxy Target",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val isRender = razorpayBackendUrl == com.example.engine.RazorpayService.RENDER_URL
+                            val isLocal = razorpayBackendUrl == com.example.engine.RazorpayService.LOCAL_EMULATOR_URL
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isRender) colors.primary else colors.surfaceContainer)
+                                    .border(1.dp, if (isRender) colors.primary else colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                    .clickable { onSelectRazorpayBackendUrl(com.example.engine.RazorpayService.RENDER_URL) }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "☁️ Render Cloud",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isRender) FontWeight.Bold else FontWeight.Medium
+                                    ),
+                                    color = if (isRender) colors.onPrimary else colors.onSurface
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isLocal) colors.primary else colors.surfaceContainer)
+                                    .border(1.dp, if (isLocal) colors.primary else colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                    .clickable { onSelectRazorpayBackendUrl(com.example.engine.RazorpayService.LOCAL_EMULATOR_URL) }
+                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "💻 Local Emulator",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isLocal) FontWeight.Bold else FontWeight.Medium
+                                    ),
+                                    color = if (isLocal) colors.onPrimary else colors.onSurface
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Active Target: $razorpayBackendUrl",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = colors.secondary
+                        )
                     }
                 }
             }
