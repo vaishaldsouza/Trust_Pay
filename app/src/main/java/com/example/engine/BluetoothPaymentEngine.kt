@@ -426,8 +426,8 @@ class BluetoothPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startReceiverAdvertising(
         receiverName: String,
-        onNotify: (String) -> Unit = {},
-        onPayloadReceived: (String) -> Unit
+        onPayloadReceived: (String) -> Unit,
+        onNotify: (String) -> Unit = {}
     ): Boolean {
         if (!isBluetoothEnabled()) return false
         if (!hasAdvertisePermission()) return false
@@ -503,7 +503,7 @@ class BluetoothPaymentEngine(private val context: Context) {
         merchantName: String,
         onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
-    ): Boolean = startReceiverAdvertising(merchantName, onNotify, onPayloadReceived)
+    ): Boolean = startReceiverAdvertising(merchantName, onPayloadReceived, onNotify)
 
     @SuppressLint("MissingPermission")
     fun stopReceiverAdvertising() {

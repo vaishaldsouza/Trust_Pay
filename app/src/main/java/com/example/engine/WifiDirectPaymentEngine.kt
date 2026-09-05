@@ -428,8 +428,8 @@ class WifiDirectPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startReceiverBroadcasting(
         receiverName: String,
-        onNotify: (String) -> Unit = {},
-        onPayloadReceived: (String) -> Unit
+        onPayloadReceived: (String) -> Unit,
+        onNotify: (String) -> Unit = {}
     ): Boolean {
         if (!hasRequiredPermissions()) return false
 
@@ -498,7 +498,7 @@ class WifiDirectPaymentEngine(private val context: Context) {
         merchantName: String,
         onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
-    ): Boolean = startReceiverBroadcasting(merchantName, onNotify, onPayloadReceived)
+    ): Boolean = startReceiverBroadcasting(merchantName, onPayloadReceived, onNotify)
 
     fun stopReceiverBroadcasting() {
         Log.d(TAG, "Stopping Receiver Wi-Fi Direct broadcasting...")
