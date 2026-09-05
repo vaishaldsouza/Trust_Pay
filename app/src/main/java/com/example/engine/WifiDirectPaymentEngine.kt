@@ -428,6 +428,7 @@ class WifiDirectPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startReceiverBroadcasting(
         receiverName: String,
+        onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
     ): Boolean {
         if (!hasRequiredPermissions()) return false
@@ -444,6 +445,7 @@ class WifiDirectPaymentEngine(private val context: Context) {
                 override fun onSuccess() {
                     Log.d(TAG, "DNS-SD Local Service added for receiver $receiverName")
                     _isAdvertising.value = true
+                    onNotify("Wi-Fi Direct DNS-SD broadcasting active for $receiverName")
                 }
                 override fun onFailure(reason: Int) {
                     Log.e(TAG, "Failed to add DNS-SD Local Service: code=$reason")
@@ -494,8 +496,9 @@ class WifiDirectPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startMerchantBroadcasting(
         merchantName: String,
+        onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
-    ): Boolean = startReceiverBroadcasting(merchantName, onPayloadReceived)
+    ): Boolean = startReceiverBroadcasting(merchantName, onNotify, onPayloadReceived)
 
     fun stopReceiverBroadcasting() {
         Log.d(TAG, "Stopping Receiver Wi-Fi Direct broadcasting...")

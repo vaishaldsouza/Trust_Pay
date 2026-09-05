@@ -426,6 +426,7 @@ class BluetoothPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startReceiverAdvertising(
         receiverName: String,
+        onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
     ): Boolean {
         if (!isBluetoothEnabled()) return false
@@ -488,6 +489,7 @@ class BluetoothPaymentEngine(private val context: Context) {
             bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
             _isAdvertising.value = true
             Log.d(TAG, "Receiver BLE Advertising started successfully for $receiverName")
+            onNotify("Receiver BLE Advertising started for $receiverName")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start Receiver BLE advertising: ${e.message}", e)
@@ -499,8 +501,9 @@ class BluetoothPaymentEngine(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun startMerchantAdvertising(
         merchantName: String,
+        onNotify: (String) -> Unit = {},
         onPayloadReceived: (String) -> Unit
-    ): Boolean = startReceiverAdvertising(merchantName, onPayloadReceived)
+    ): Boolean = startReceiverAdvertising(merchantName, onNotify, onPayloadReceived)
 
     @SuppressLint("MissingPermission")
     fun stopReceiverAdvertising() {
