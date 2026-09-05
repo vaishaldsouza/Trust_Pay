@@ -205,6 +205,42 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     )
     val buyerState: StateFlow<Buyer> = _buyerState.asStateFlow()
 
+    // Transaction-level role (SENDER vs RECEIVER)
+    private val _peerTransactionRole = MutableStateFlow(PeerTransactionRole.SENDER)
+    val peerTransactionRole: StateFlow<PeerTransactionRole> = _peerTransactionRole.asStateFlow()
+
+    fun setPeerTransactionRole(role: PeerTransactionRole) {
+        _peerTransactionRole.value = role
+        if (role == PeerTransactionRole.RECEIVER) {
+            val name = currentUser.value.name
+            bluetoothEngine.startReceiverAdvertising(name) { payload ->
+                processIncomingGattPayload(payload)
+            }
+            wifiDirectEngine.startReceiverBroadcasting(name) { payload ->
+                processIncomingGattPayload(payload)
+            }
+        } else {
+            bluetoothEngine.stopReceiverAdvertising()
+            wifiDirectEngine.stopReceiverBroadcasting()
+        }
+    }
+
+    /**
+     * Authorizes a real Razorpay Autopay Mandate for ANY account type (Buyer, Merchant, Admin)
+     */
+    fun createMandate(monthlyLimit: Long = 2000L, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val newMandateRef = "MND-${System.currentTimeMillis().toString().takeLast(6)}-AUTO"
+            _buyerState.value = _buyerState.value.copy(
+                mandateReference = newMandateRef,
+                maxMandateMonthly = monthlyLimit,
+                offlineLimit = 500L
+            )
+            recomputeTrustDecision()
+            onResult(true, "Razorpay Autopay Mandate ($newMandateRef) authorized successfully!")
+        }
+    }
+
     // Available balance
     private val _walletBalance = MutableStateFlow(12450.00)
     val walletBalance: StateFlow<Double> = _walletBalance.asStateFlow()

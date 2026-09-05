@@ -60,7 +60,15 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.Send
 import com.example.data.model.Buyer
+import com.example.data.model.PeerTransactionRole
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionMode
 import com.example.data.model.TransactionStatus
@@ -82,6 +90,10 @@ fun BuyerHomeScreen(
     onOpenUssdClick: () -> Unit = {},
     isBalanceMasked: Boolean = true,
     onToggleBalanceMasked: () -> Unit = {},
+    peerTransactionRole: PeerTransactionRole = PeerTransactionRole.SENDER,
+    onPeerTransactionRoleChange: (PeerTransactionRole) -> Unit = {},
+    onAuthorizeMandate: () -> Unit = {},
+    qrBitmap: android.graphics.Bitmap? = null,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -95,6 +107,248 @@ fun BuyerHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item { Spacer(modifier = Modifier.height(4.dp)) }
+
+        // Mode Selector Toggle ("Send Money" vs "Receive Money")
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.surfaceContainer)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (peerTransactionRole == PeerTransactionRole.SENDER) colors.primary else Color.Transparent)
+                        .clickable { onPeerTransactionRoleChange(PeerTransactionRole.SENDER) }
+                        .testTag("mode_send_money_tab"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Send Money",
+                            tint = if (peerTransactionRole == PeerTransactionRole.SENDER) colors.onPrimary else colors.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Send Money",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (peerTransactionRole == PeerTransactionRole.SENDER) colors.onPrimary else colors.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (peerTransactionRole == PeerTransactionRole.RECEIVER) colors.secondary else Color.Transparent)
+                        .clickable { onPeerTransactionRoleChange(PeerTransactionRole.RECEIVER) }
+                        .testTag("mode_receive_money_tab"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CallReceived,
+                            contentDescription = "Receive Money",
+                            tint = if (peerTransactionRole == PeerTransactionRole.RECEIVER) colors.onSecondary else colors.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Receive Money",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (peerTransactionRole == PeerTransactionRole.RECEIVER) colors.onSecondary else colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        // Mandatory Mandate Gate for "Send Money" Mode
+        if (peerTransactionRole == PeerTransactionRole.SENDER && !buyer.hasActiveMandate) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = colors.warningContainer.copy(alpha = 0.3f)),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.warning.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Gavel,
+                            contentDescription = null,
+                            tint = colors.warning,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Set Up Payment Authority First",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.primary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "To send offline payments, your account must authorize a Razorpay Autopay mandate. Bounded offline exposure requires a registered UPI payment authority — default limits are never fabricated.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onAuthorizeMandate,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.primary,
+                                contentColor = colors.onPrimary
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("authorize_mandate_button")
+                        ) {
+                            Text(
+                                text = "Authorize Razorpay Mandate (₹2,000/mo)",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Receive Money Terminal View
+        if (peerTransactionRole == PeerTransactionRole.RECEIVER) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode2,
+                                contentDescription = null,
+                                tint = colors.secondary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Peer-to-Peer Receiver Mode Active",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Show this QR code or keep your device nearby to receive payments over BLE, Wi-Fi Direct, or Sound Waves.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (qrBitmap != null) {
+                            Image(
+                                bitmap = qrBitmap.asImageBitmap(),
+                                contentDescription = "Peer Receive QR",
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(1.dp, colors.outlineVariant, RoundedCornerShape(12.dp))
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.surfaceContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Generating P2P Receive QR...", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.surfaceLow)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "BLE Receiver GATT Server: LISTENING",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.secondary
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Wi-Fi Direct DNS-SD Listener: ACTIVE",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.secondary
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.secondary)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Ultrasonic Acoustic FSK Modem: LISTENING",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.secondary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // 1. Available Balance Card (matches Image 5)
         item {

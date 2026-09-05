@@ -423,11 +423,11 @@ class WifiDirectPaymentEngine(private val context: Context) {
     }
 
     /**
-     * Starts Merchant-side DNS-SD Local Service Advertising & TCP Server Socket.
+     * Starts Receiver-side DNS-SD Local Service Advertising & TCP Server Socket for ANY peer account.
      */
     @SuppressLint("MissingPermission")
-    fun startMerchantBroadcasting(
-        merchantName: String,
+    fun startReceiverBroadcasting(
+        receiverName: String,
         onPayloadReceived: (String) -> Unit
     ): Boolean {
         if (!hasRequiredPermissions()) return false
@@ -435,14 +435,14 @@ class WifiDirectPaymentEngine(private val context: Context) {
         registerReceiver()
         try {
             val record = mapOf(
-                "merchant" to merchantName,
+                "merchant" to receiverName,
                 "port" to P2P_PORT.toString()
             )
             serviceInfo = WifiP2pDnsSdServiceInfo.newInstance(SERVICE_NAME, SERVICE_TYPE, record)
 
             p2pManager?.addLocalService(p2pChannel, serviceInfo, object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
-                    Log.d(TAG, "DNS-SD Local Service added for merchant $merchantName")
+                    Log.d(TAG, "DNS-SD Local Service added for receiver $receiverName")
                     _isAdvertising.value = true
                 }
                 override fun onFailure(reason: Int) {
@@ -455,7 +455,7 @@ class WifiDirectPaymentEngine(private val context: Context) {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     activeServerSocket = ServerSocket(P2P_PORT)
-                    Log.d(TAG, "Merchant TCP ServerSocket listening on port $P2P_PORT...")
+                    Log.d(TAG, "Receiver TCP ServerSocket listening on port $P2P_PORT...")
                     while (_isAdvertising.value) {
                         val socket = activeServerSocket?.accept() ?: break
                         Log.d(TAG, "Incoming TCP Socket connection accepted from ${socket.inetAddress.hostAddress}")
@@ -485,14 +485,20 @@ class WifiDirectPaymentEngine(private val context: Context) {
             }
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start Merchant Wi-Fi Direct broadcasting: ${e.message}", e)
+            Log.e(TAG, "Failed to start Receiver Wi-Fi Direct broadcasting: ${e.message}", e)
             _isAdvertising.value = false
             return false
         }
     }
 
-    fun stopMerchantBroadcasting() {
-        Log.d(TAG, "Stopping Merchant Wi-Fi Direct broadcasting...")
+    @SuppressLint("MissingPermission")
+    fun startMerchantBroadcasting(
+        merchantName: String,
+        onPayloadReceived: (String) -> Unit
+    ): Boolean = startReceiverBroadcasting(merchantName, onPayloadReceived)
+
+    fun stopReceiverBroadcasting() {
+        Log.d(TAG, "Stopping Receiver Wi-Fi Direct broadcasting...")
         try {
             if (serviceInfo != null) {
                 p2pManager?.clearLocalServices(p2pChannel, null)
@@ -503,6 +509,8 @@ class WifiDirectPaymentEngine(private val context: Context) {
         removeGroup()
         _isAdvertising.value = false
     }
+
+    fun stopMerchantBroadcasting() = stopReceiverBroadcasting()
 
     /**
      * Transmits transaction payload over TCP Socket with length-prefixed binary framing.

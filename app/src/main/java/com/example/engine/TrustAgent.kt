@@ -60,7 +60,7 @@ object TrustAgent {
             )
         }
 
-        val hasValidMandate = buyer.mandateReference.isNotBlank()
+        val hasValidMandate = !buyer.mandateReference.isNullOrBlank()
 
         when (modeChoice) {
             ModeSelectorChoice.AUTO -> {

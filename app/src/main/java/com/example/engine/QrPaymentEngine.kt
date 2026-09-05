@@ -99,12 +99,26 @@ class QrPaymentEngine(private val context: Context) {
     }
 
     /**
+     * Generates a Receive QR encoding peer receiver metadata for auto-selection by any sender.
+     */
+    fun generatePeerReceiveQr(
+        userId: String,
+        userName: String,
+        category: String = "P2P Transfer",
+        location: String = "Peer Device",
+        width: Int = 512,
+        height: Int = 512
+    ): Bitmap? {
+        val payloadStr = "TPAY:MERCHANT|$userId|$userName|$category|$location"
+        Log.d(TAG, "Generating Peer Receive QR: $payloadStr")
+        return generateQrBitmap(payloadStr, width, height)
+    }
+
+    /**
      * Generates a static Merchant Receive QR encoding merchant metadata for Buyer auto-selection.
      */
     fun generateMerchantReceiveQr(merchant: Merchant, width: Int = 512, height: Int = 512): Bitmap? {
-        val payloadStr = "TPAY:MERCHANT|${merchant.merchantId}|${merchant.businessName}|${merchant.category}|${merchant.location}"
-        Log.d(TAG, "Generating Merchant Receive QR: $payloadStr")
-        return generateQrBitmap(payloadStr, width, height)
+        return generatePeerReceiveQr(merchant.merchantId, merchant.businessName, merchant.category, merchant.location, width, height)
     }
 
     fun startScanning() {

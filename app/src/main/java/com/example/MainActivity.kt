@@ -454,6 +454,11 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                     ScreenTab.HOME -> {
                         when (currentRole) {
                             UserRole.BUYER -> {
+                                val peerTransactionRole by viewModel.peerTransactionRole.collectAsState()
+                                val peerQrBitmap = remember(currentUser.id) {
+                                    viewModel.qrEngine.generatePeerReceiveQr(currentUser.id, currentUser.name)
+                                }
+
                                 BuyerHomeScreen(
                                     isOnline = isOnline,
                                     buyer = buyerState,
@@ -474,7 +479,15 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                         }
                                     },
                                     isBalanceMasked = isBalanceMasked,
-                                    onToggleBalanceMasked = { viewModel.toggleBalanceMasked() }
+                                    onToggleBalanceMasked = { viewModel.toggleBalanceMasked() },
+                                    peerTransactionRole = peerTransactionRole,
+                                    onPeerTransactionRoleChange = { role -> viewModel.setPeerTransactionRole(role) },
+                                    onAuthorizeMandate = {
+                                        viewModel.createMandate { success, msg ->
+                                            coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
+                                        }
+                                    },
+                                    qrBitmap = peerQrBitmap
                                 )
 
                             }

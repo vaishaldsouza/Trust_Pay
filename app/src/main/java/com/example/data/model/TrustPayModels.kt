@@ -6,6 +6,11 @@ enum class UserRole {
     ADMIN
 }
 
+enum class PeerTransactionRole {
+    SENDER,
+    RECEIVER
+}
+
 enum class TransactionMode {
     OFFLINE_VALUE,
     AUTHORIZATION,
@@ -50,7 +55,7 @@ data class Buyer(
     val userId: String,
     val offlineLimit: Long = 500L,
     val offlineExposure: Long = 180L,
-    val mandateReference: String = "MND-9823-XYZ",
+    val mandateReference: String? = "MND-9823-XYZ",
     val maxMandateMonthly: Long = 2000L,
     val successfulTransactions: Int = 38,
     val failedTransactions: Int = 1,
@@ -59,6 +64,9 @@ data class Buyer(
 ) {
     val availableExposure: Long
         get() = (offlineLimit - offlineExposure).coerceAtLeast(0L)
+
+    val hasActiveMandate: Boolean
+        get() = !mandateReference.isNullOrBlank()
 }
 
 data class Merchant(

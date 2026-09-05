@@ -421,11 +421,11 @@ class BluetoothPaymentEngine(private val context: Context) {
     }
 
     /**
-     * Starts Merchant-side BLE Advertising & GATT Server broadcasting TrustPay Service UUID.
+     * Starts Receiver-side BLE Advertising & GATT Server broadcasting TrustPay Service UUID for ANY peer account.
      */
     @SuppressLint("MissingPermission")
-    fun startMerchantAdvertising(
-        merchantName: String,
+    fun startReceiverAdvertising(
+        receiverName: String,
         onPayloadReceived: (String) -> Unit
     ): Boolean {
         if (!isBluetoothEnabled()) return false
@@ -446,7 +446,7 @@ class BluetoothPaymentEngine(private val context: Context) {
                     super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
                     if (characteristic.uuid == TRUSTPAY_TX_CHAR_UUID || characteristic.uuid == TRUSTPAY_RX_CHAR_UUID) {
                         val payloadStr = String(value, Charsets.UTF_8)
-                        Log.d(TAG, "Merchant GATT Server received payment wire packet: $payloadStr")
+                        Log.d(TAG, "Receiver GATT Server received payment wire packet: $payloadStr")
                         onPayloadReceived(payloadStr)
 
                         if (responseNeeded) {
@@ -487,17 +487,23 @@ class BluetoothPaymentEngine(private val context: Context) {
 
             bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
             _isAdvertising.value = true
-            Log.d(TAG, "Merchant BLE Advertising started successfully for $merchantName")
+            Log.d(TAG, "Receiver BLE Advertising started successfully for $receiverName")
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start Merchant BLE advertising: ${e.message}", e)
+            Log.e(TAG, "Failed to start Receiver BLE advertising: ${e.message}", e)
             _isAdvertising.value = false
             return false
         }
     }
 
     @SuppressLint("MissingPermission")
-    fun stopMerchantAdvertising() {
+    fun startMerchantAdvertising(
+        merchantName: String,
+        onPayloadReceived: (String) -> Unit
+    ): Boolean = startReceiverAdvertising(merchantName, onPayloadReceived)
+
+    @SuppressLint("MissingPermission")
+    fun stopReceiverAdvertising() {
         try {
             if (hasAdvertisePermission()) {
                 bleAdvertiser?.stopAdvertising(advertiseCallback)
@@ -510,6 +516,9 @@ class BluetoothPaymentEngine(private val context: Context) {
         bleAdvertiser = null
         _isAdvertising.value = false
     }
+
+    @SuppressLint("MissingPermission")
+    fun stopMerchantAdvertising() = stopReceiverAdvertising()
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
