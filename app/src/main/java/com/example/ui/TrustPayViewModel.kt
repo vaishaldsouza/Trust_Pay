@@ -214,12 +214,14 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         _peerTransactionRole.value = role
         if (role == PeerTransactionRole.RECEIVER) {
             val name = currentUser.value.name
-            bluetoothEngine.startReceiverAdvertising(name) { payload ->
-                processIncomingGattPayload(payload)
-            }
-            wifiDirectEngine.startReceiverBroadcasting(name) { payload ->
-                processIncomingGattPayload(payload)
-            }
+            bluetoothEngine.startReceiverAdvertising(
+                receiverName = name,
+                onPayloadReceived = { payload -> processIncomingGattPayload(payload) }
+            )
+            wifiDirectEngine.startReceiverBroadcasting(
+                receiverName = name,
+                onPayloadReceived = { payload -> processIncomingGattPayload(payload) }
+            )
         } else {
             bluetoothEngine.stopReceiverAdvertising()
             wifiDirectEngine.stopReceiverBroadcasting()
