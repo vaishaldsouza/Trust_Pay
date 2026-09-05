@@ -1202,7 +1202,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             val explanation = GeminiExplainabilityService.explainFlaggedTransaction(
                 transaction = transaction,
                 question = query,
-                isNetworkOnline = _isOnline.value
+                isNetworkOnline = _isOnline.value,
+                language = _selectedLanguage.value
             )
             _geminiExplanation.value = explanation
             _isGeminiLoading.value = false

@@ -1529,8 +1529,8 @@ fun PaymentScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (isOnline) "Enter Amount to send via Razorpay Flow"
-                        else "Enter Amount to send via ${selectedOfflineOption.label}",
+                        text = if (isOnline) strings.enterAmountOnlineDesc
+                        else strings.enterAmountOfflineDesc.format(selectedOfflineOption.label),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.onSurfaceVariant
                     )

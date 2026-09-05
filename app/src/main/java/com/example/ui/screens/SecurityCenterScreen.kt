@@ -105,7 +105,7 @@ fun SecurityCenterScreen(
                         color = colors.primary
                     )
                     Text(
-                        text = "Anomaly Investigation: ${transaction.transactionId}",
+                        text = "${strings.anomalyInvestigationTitle}: ${transaction.transactionId}",
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.onSurfaceVariant
                     )
@@ -141,7 +141,7 @@ fun SecurityCenterScreen(
 
                     // Gradient Risk Meter Bar
                     Text(
-                        text = "Risk Probability Spectrum",
+                        text = strings.riskSpectrumTitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.onSurfaceVariant
                     )
@@ -167,16 +167,16 @@ fun SecurityCenterScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("0% (Low)", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-                        Text("50% (Medium)", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-                        Text("100% (Critical)", style = MaterialTheme.typography.labelSmall, color = colors.error)
+                        Text(strings.riskSpectrumLow, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                        Text(strings.riskSpectrumMedium, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                        Text(strings.riskSpectrumCritical, style = MaterialTheme.typography.labelSmall, color = colors.error)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // --- DUAL SCORING EVALUATION SECTION ---
                     Text(
-                        text = "Dual Risk Analysis Systems",
+                        text = strings.dualRiskAnalysisTitle,
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = colors.primary
                     )
@@ -196,12 +196,12 @@ fun SecurityCenterScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text = "Rule-Based Risk Score",
+                                        text = strings.ruleBasedScoreTitle,
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                         color = colors.primary
                                     )
                                     Text(
-                                        text = "Local Heuristic Engine (FraudDetector.kt)",
+                                        text = strings.ruleBasedScoreSubtitle,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = colors.onSurfaceVariant
                                     )
@@ -250,7 +250,7 @@ fun SecurityCenterScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            text = "ML Model Risk Score",
+                                            text = strings.mlModelScoreTitle,
                                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                             color = colors.primary
                                         )
@@ -269,7 +269,7 @@ fun SecurityCenterScreen(
                                         }
                                     }
                                     Text(
-                                        text = "Trained XGBoost model validated on synthetic data",
+                                        text = strings.mlModelScoreSubtitle,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                         color = colors.onSurfaceVariant
                                     )
@@ -283,7 +283,7 @@ fun SecurityCenterScreen(
                                             color = colors.primary
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Evaluating...", style = MaterialTheme.typography.labelSmall, color = colors.primary)
+                                        Text(strings.evaluatingText, style = MaterialTheme.typography.labelSmall, color = colors.primary)
                                     }
                                 } else if (mlEvaluation != null && mlEvaluation.isAvailable) {
                                     val mlProb = mlEvaluation.fraudProbability ?: 0f
@@ -333,14 +333,14 @@ fun SecurityCenterScreen(
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "ML service unavailable — using local rules",
+                                        text = strings.mlServiceUnavailable,
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                         color = colors.warning
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Remote endpoint https://trust-pay-fraud-detection.onrender.com/predict was unreachable or timed out. Honest fallback active: no score was fabricated.",
+                                    text = strings.mlFallbackNotice,
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     color = colors.onSurfaceVariant
                                 )
@@ -353,7 +353,7 @@ fun SecurityCenterScreen(
                                     ) {
                                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(12.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Retry ML Service", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp))
+                                        Text(strings.retryMlServiceButton, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp))
                                     }
                                 }
                             }
@@ -374,7 +374,7 @@ fun SecurityCenterScreen(
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
-                        text = "Why this was flagged",
+                        text = strings.whyFlaggedTitle,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = colors.primary
                     )
@@ -453,12 +453,12 @@ fun SecurityCenterScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(
-                                    text = "Investigate with Gemini AI",
+                                    text = strings.investigateWithGeminiTitle,
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = colors.primary
                                 )
                                 Text(
-                                    text = "Model: gemini-2.5-flash • Explainability Only",
+                                    text = strings.geminiModelSubtitle,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = colors.onSurfaceVariant
                                 )
@@ -469,16 +469,16 @@ fun SecurityCenterScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Suggested Questions
-                    Text("Suggested Questions:", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                    Text(strings.suggestedQuestionsTitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         listOf(
-                            "Why was this flagged?",
-                            "Is device compromised?",
-                            "Recommended actions"
+                            strings.qWhyFlagged,
+                            strings.qIsDeviceCompromised,
+                            strings.qRecommendedActions
                         ).forEach { q ->
                             Box(
                                 modifier = Modifier
@@ -489,12 +489,13 @@ fun SecurityCenterScreen(
                             ) {
                                 Text(
                                     text = q,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colors.primary
                                 )
                             }
                         }
                     }
+
 
                     Spacer(modifier = Modifier.height(14.dp))
 

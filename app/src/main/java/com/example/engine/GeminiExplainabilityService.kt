@@ -13,25 +13,28 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
+import com.example.util.AppLanguage
+
 object GeminiExplainabilityService {
     private const val TAG = "TrustPayGemini"
     private const val GEMINI_MODEL = "gemini-2.5-flash"
 
     /**
-     * Translates structured ML risk signals into plain English explainability for administrators.
+     * Translates structured ML risk signals into plain language explainability for administrators.
      * Note: Gemini strictly never influences the deterministic accept/reject decision.
      */
     suspend fun explainFlaggedTransaction(
         transaction: Transaction,
         question: String = "Why was this transaction flagged and what actions are recommended?",
-        isNetworkOnline: Boolean = true
+        isNetworkOnline: Boolean = true,
+        language: AppLanguage = AppLanguage.ENGLISH
     ): String = withContext(Dispatchers.IO) {
         val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
 
-        val structuredContext = buildContextPrompt(transaction, question)
+        val structuredContext = buildContextPrompt(transaction, question, language)
 
         if (!isNetworkOnline || apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext generateOfflineDeterministicExplanation(transaction, question)
+            return@withContext generateOfflineDeterministicExplanation(transaction, question, language)
         }
 
         try {
@@ -44,7 +47,7 @@ object GeminiExplainabilityService {
             conn.readTimeout = 10000
             conn.doOutput = true
 
-            val systemInstruction = "You are TrustPay AI Risk Investigator. You explain synthetic ML fraud risk scores and offline exposure anomalies to fintech compliance officers. You do NOT make payment approvals or declines; those are determined deterministically by Trust Agent rules."
+            val systemInstruction = "You are TrustPay AI Risk Investigator. You explain synthetic ML fraud risk scores and offline exposure anomalies to fintech compliance officers. Respond in ${language.displayName}. You do NOT make payment approvals or declines; those are determined deterministically by Trust Agent rules."
 
             val jsonBody = JSONObject().apply {
                 put("contents", JSONArray().apply {
@@ -80,15 +83,16 @@ object GeminiExplainabilityService {
                 }
             }
             // If API returned error or empty, fall back gracefully
-            return@withContext generateOfflineDeterministicExplanation(transaction, question)
+            return@withContext generateOfflineDeterministicExplanation(transaction, question, language)
         } catch (e: Exception) {
             Log.w(TAG, "Gemini API error, falling back to local engine: ${e.message}")
-            return@withContext generateOfflineDeterministicExplanation(transaction, question)
+            return@withContext generateOfflineDeterministicExplanation(transaction, question, language)
         }
     }
 
-    private fun buildContextPrompt(tx: Transaction, userQuery: String): String {
+    private fun buildContextPrompt(tx: Transaction, userQuery: String, language: AppLanguage): String {
         return """
+            Language: ${language.displayName}
             Transaction ID: ${tx.transactionId}
             Amount: ₹${tx.amount} ${tx.currency}
             Buyer: ${tx.buyerName} (${tx.buyerId})
@@ -102,21 +106,43 @@ object GeminiExplainabilityService {
 
             Investigator Question: $userQuery
 
-            Provide a clear, 3-4 sentence risk analysis summarizing:
+            Provide a clear, 3-4 sentence risk analysis in ${language.displayName} summarizing:
             1. The primary trigger (e.g. deviation from historical baseline or rapid burst)
             2. The exposure risk to the merchant and buyer
             3. Recommended operational step (e.g. restrict device or contact buyer to verify)
         """.trimIndent()
     }
 
-    private fun generateOfflineDeterministicExplanation(tx: Transaction, userQuery: String): String {
+    private fun generateOfflineDeterministicExplanation(tx: Transaction, userQuery: String, language: AppLanguage): String {
         val riskPercent = (tx.fraudProbability * 100).toInt()
         val reasonsText = tx.fraudReasons.joinToString(". ")
 
-        return "Risk Assessment (${riskPercent}% Confidence):\n\n" +
+        return when (language) {
+            AppLanguage.HINDI -> {
+                "जोखिम मूल्यांकन (${riskPercent}% विश्वास):\n\n" +
+                "लेनदेन ${tx.transactionId} ने उच्च विसंगति सीमा को ट्रिगर किया: $reasonsText। " +
+                "₹${tx.amount} की लेनदेन राशि खरीदार के पैटर्न के सापेक्ष जोखिम पैदा करती है। " +
+                "सिफारिश: इस लेनदेन को मैनुअल समीक्षा में रखें। पहचान सत्यापन तक डिवाइस ${tx.buyerId} पर आगे के ऑफ-लाइन लेनदेन को प्रतिबंधित करने पर विचार करें।"
+            }
+            AppLanguage.KANNADA -> {
+                "ಅಪಾಯ ಮೌಲ್ಯಮಾಪನ (${riskPercent}% ನಂಬಿಕೆ):\n\n" +
+                "ವ್ಯವಹಾರ ${tx.transactionId} ಹೆಚ್ಚಿನ ಅಸಂಗತತೆಯ ಮಿತಿಯನ್ನು ಪ್ರಚೋದಿಸಿದೆ: $reasonsText. " +
+                "₹${tx.amount} ವ್ಯವಹಾರ ಮೊತ್ತವು ಖರೀದಿದಾರರ ಆಫ್‌ಲೈನ್ ಮಾದರಿಗೆ ಹೋಲಿಸಿದರೆ ಅಸಾಮಾನ್ಯ ಅಪಾಯವನ್ನು ಸೃಷ್ಟಿಸುತ್ತದೆ. " +
+                "ಶಿಫಾರಸು: ಈ ವ್ಯವಹಾರವನ್ನು ಪರಿಶೀಲನೆಯಲ್ಲಿರಿಸಿ. ಗುರುತು ಪರಿಶೀಲನೆವರೆಗೆ ಸಾಧನ ${tx.buyerId} ನಲ್ಲಿ ವ್ಯವಹಾರಗಳನ್ನು ನಿರ್ಬಂಧಿಸಿ."
+            }
+            AppLanguage.MALAYALAM -> {
+                "അപായ നിർണ്ണയം (${riskPercent}% വിശ്വാസ്യത):\n\n" +
+                "ഇടപാട് ${tx.transactionId} ഉയർന്ന അപാകത പരിധി ലംഘിച്ചു: $reasonsText. " +
+                "₹${tx.amount} തുക വാങ്ങുന്നയാളുടെ ചരിത്രപരമായ രീതിയുമായി താരതമ്യം ചെയ്യുമ്പോൾ അപകടസാധ്യത ഉണ്ടാക്കുന്നു. " +
+                "ശുപാർശ: ഈ ഇടപാട് അവലോകനത്തിൽ വയ്ക്കുക. ഐഡന്റിറ്റി സ്ഥിരീകരണം വരെ ഉപകരണം ${tx.buyerId}-ൽ കൂടുതൽ ഇടപാടുകൾ പരിമിതപ്പെടുത്തുക."
+            }
+            else -> {
+                "Risk Assessment (${riskPercent}% Confidence):\n\n" +
                 "Transaction ${tx.transactionId} triggered high anomaly thresholds because: $reasonsText. " +
                 "The transaction amount of ₹${tx.amount} creates an uncharacteristic exposure spike relative to the buyer's historical offline pattern. " +
                 "Recommendation: Place this transaction under Manual Fraud Review. The compliance team should consider restricting further offline transactions on device ${tx.buyerId} until identity verification is completed."
+            }
+        }
     }
 
     /**

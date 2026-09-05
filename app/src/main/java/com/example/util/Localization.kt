@@ -202,6 +202,69 @@ data class AppStrings(
     val architecturePrinciples: String = "Core Architectural Principles",
     val deviceCryptography: String = "Device Cryptography & Keys",
 
+    // Architectural Principles Bullets
+    val archRule1: String = "Does not create an alternative currency or token",
+    val archRule2: String = "Does not replace UPI; integrates with Razorpay Autopay",
+    val archRule3: String = "Offline transactions labeled 'Offline Authorized', not settled",
+    val archRule4: String = "Deterministic exposure limits (no AI for double-spend)",
+    val archRule5: String = "Ed25519 asymmetric cryptographic signing",
+    val archRule6: String = "Isolation Forest & XGBoost ML behavioral anomaly scoring",
+    val archRule7: String = "Gemini AI explainability for compliance audit",
+
+    // Backend Status & Ledger Settings
+    val pendingRoomQueue: String = "Pending Room Queue",
+    val lastSyncLabel: String = "Last Sync",
+    val justNow: String = "Just now",
+    val minutesAgo: String = "%dm ago",
+    val notSyncedYet: String = "Not synced yet",
+    val razorpayTargetLabel: String = "Razorpay Backend Proxy Target",
+    val renderCloud: String = "Cloud Render",
+    val localEmulator: String = "Local Emulator",
+    val activeTargetPrefix: String = "Active Target",
+    val liveSyncBadge: String = "LIVE SYNC",
+    val roomOnlyBadge: String = "ROOM ONLY",
+    val accountSessionTitle: String = "Account Session",
+    val accountSessionDesc: String = "End your active session or switch to another user account. Returning will require logging in or choosing a demo role.",
+    val logoutButtonLabel: String = "Logout / Switch Account",
+
+    // Activity & Reconciliation Pipeline
+    val transactionsDiscoveredLabel: String = "%d transactions discovered",
+    val signaturesVerifiedLabel: String = "%d signatures verified",
+    val replayAttacksLabel: String = "%d replay attacks",
+    val duplicateTxLabel: String = "%d duplicate transactions",
+    val highRiskFlaggedLabel: String = "%d high-risk transaction flagged",
+    val lowRiskTxLabel: String = "%d low-risk transactions",
+    val settlementSummaryTitle: String = "Settlement Summary",
+    val settlementSummaryDesc: String = "%d successful, %d review required",
+    val reviewFlaggedItemButton: String = "Review Flagged Item ->",
+
+    // Security Center & Anomaly Investigation
+    val anomalyInvestigationTitle: String = "Anomaly Investigation",
+    val riskSpectrumTitle: String = "Risk Probability Spectrum",
+    val riskSpectrumLow: String = "0% (Low)",
+    val riskSpectrumMedium: String = "50% (Medium)",
+    val riskSpectrumCritical: String = "100% (Critical)",
+    val dualRiskAnalysisTitle: String = "Dual Risk Analysis Systems",
+    val ruleBasedScoreTitle: String = "Rule-Based Risk Score",
+    val ruleBasedScoreSubtitle: String = "Local Heuristic Engine (FraudDetector.kt)",
+    val mlModelScoreTitle: String = "ML Model Risk Score",
+    val mlModelScoreSubtitle: String = "Trained XGBoost model validated on synthetic data",
+    val evaluatingText: String = "Evaluating...",
+    val mlServiceUnavailable: String = "ML service unavailable — using local rules",
+    val mlFallbackNotice: String = "Remote endpoint was unreachable or timed out. Honest fallback active: no score was fabricated.",
+    val retryMlServiceButton: String = "Retry ML Service",
+    val whyFlaggedTitle: String = "Why this was flagged",
+    val investigateWithGeminiTitle: String = "Investigate with Gemini AI",
+    val geminiModelSubtitle: String = "Model: gemini-2.5-flash • Explainability Only",
+    val suggestedQuestionsTitle: String = "Suggested Questions:",
+    val qWhyFlagged: String = "Why was this flagged?",
+    val qIsDeviceCompromised: String = "Is device compromised?",
+    val qRecommendedActions: String = "Recommended actions",
+
+    // Payments
+    val enterAmountOnlineDesc: String = "Enter Amount to send via Razorpay Flow",
+    val enterAmountOfflineDesc: String = "Enter Amount to send via %s",
+
     // Voice Assistant
     val voiceListening: String = "Listening...",
     val voiceTapToSpeak: String = "Tap microphone to speak",
@@ -218,6 +281,7 @@ data class AppStrings(
     val voiceClose: String = "Close",
     val voiceNotUnderstood: String = "Sorry, I didn't catch that. You can ask about balance, transactions, sync status, or say 'Pay ₹250 to Artisan Roasters'."
 )
+
 
 object LocalizationManager {
     fun getStrings(language: AppLanguage): AppStrings {
@@ -376,8 +440,63 @@ object LocalizationManager {
                 voiceStopAudio = "ऑडियो रोकें",
                 voicePlayAudio = "ऑडियो सुनें",
                 voiceClose = "बंद करें",
-                voiceNotUnderstood = "क्षमा करें, मैं समझ नहीं पाया। आप बैलेंस, लेनदेन, सिंक स्थिति के बारे में पूछ सकते हैं।"
+                voiceNotUnderstood = "क्षमा करें, मैं समझ नहीं पाया। आप बैलेंस, लेनदेन, सिंक स्थिति के बारे में पूछ सकते हैं।",
+
+                archRule1 = "कोई वैकल्पिक मुद्रा या टोकन नहीं बनाता है",
+                archRule2 = "यूपीआई को प्रतिस्थापित नहीं करता; रेजरपे ऑटोपे के साथ एकीकृत होता है",
+                archRule3 = "ऑफलाइन लेनदेन 'ऑफलाइन अधिकृत' के रूप में चिह्नित होते हैं, निपटाए नहीं",
+                archRule4 = "निर्धारित एक्सपोज़र सीमाएं (डबल-स्पेंड के लिए कोई एआई नहीं)",
+                archRule5 = "Ed25519 एसिमेट्रिक क्रिप्टोग्राफिक हस्ताक्षर",
+                archRule6 = "आइसोलेशन फॉरेस्ट और एक्सजीबूस्ट एमएल व्यवहारिक विसंगति स्कोरिंग",
+                archRule7 = "अनुपालन ऑडिट के लिए जेमिनी एआई फोरेंसिक व्याख्या",
+
+                pendingRoomQueue = "लंबित रूम कतार",
+                lastSyncLabel = "अंतिम सिंक",
+                justNow = "अभी-अभी",
+                notSyncedYet = "अभी तक सिंक नहीं हुआ",
+                razorpayTargetLabel = "रेजरपे बैकएंड प्रॉक्सी लक्ष्य",
+                renderCloud = "क्लाउड रेंडर",
+                localEmulator = "स्थानीय एमुलेटर",
+                accountSessionTitle = "खाता सत्र",
+                accountSessionDesc = "अपना सक्रिय सत्र समाप्त करें या किसी अन्य उपयोगकर्ता खाते में स्विच करें।",
+                logoutButtonLabel = "लॉगआउट / खाता बदलें",
+
+                transactionsDiscoveredLabel = "%d लेनदेन मिले",
+                signaturesVerifiedLabel = "%d हस्ताक्षर सत्यापित",
+                replayAttacksLabel = "%d रीप्ले हमले",
+                duplicateTxLabel = "%d डुप्लिकेट लेनदेन",
+                highRiskFlaggedLabel = "%d उच्च-जोखिम वाले लेनदेन ध्वजांकित",
+                lowRiskTxLabel = "%d कम-जोखिम वाले लेनदेन",
+                settlementSummaryTitle = "निपटान सारांश",
+                settlementSummaryDesc = "%d सफल, %d समीक्षा आवश्यक",
+                reviewFlaggedItemButton = "ध्वजांकित आइटम की समीक्षा करें ->",
+
+                anomalyInvestigationTitle = "विसंगति जांच",
+                riskSpectrumTitle = "जोखिम संभावना स्पेक्ट्रम",
+                riskSpectrumLow = "0% (कम)",
+                riskSpectrumMedium = "50% (मध्यम)",
+                riskSpectrumCritical = "100% (गंभीर)",
+                dualRiskAnalysisTitle = "द्वंद्व जोखिम विश्लेषण प्रणाली",
+                ruleBasedScoreTitle = "नियम-आधारित जोखिम स्कोर",
+                ruleBasedScoreSubtitle = "स्थानीय ह्यूरिस्टिक इंजन (FraudDetector.kt)",
+                mlModelScoreTitle = "एमएल मॉडल जोखिम स्कोर",
+                mlModelScoreSubtitle = "प्रशिक्षित एक्सजीबूस्ट मॉडल द्वारा सत्यापित",
+                evaluatingText = "मूल्यांकन हो रहा है...",
+                mlServiceUnavailable = "एमएल सेवा अनुपलब्ध — स्थानीय नियमों का उपयोग",
+                mlFallbackNotice = "रिमोट एंडपॉइंट अनुपलब्ध था या टाइमआउट हो गया। ईमानदार फॉलबैक सक्रिय है।",
+                retryMlServiceButton = "एमएल सेवा पुनः प्रयास करें",
+                whyFlaggedTitle = "इसे क्यों ध्वजांकित किया गया",
+                investigateWithGeminiTitle = "जेमिनी एआई के साथ जांच करें",
+                geminiModelSubtitle = "मॉडल: gemini-2.5-flash • केवल व्याख्या",
+                suggestedQuestionsTitle = "सुझाए गए प्रश्न:",
+                qWhyFlagged = "इसे क्यों ध्वजांकित किया गया?",
+                qIsDeviceCompromised = "क्या डिवाइस असुरक्षित है?",
+                qRecommendedActions = "अनुशंसित कार्रवाइयां",
+
+                enterAmountOnlineDesc = "रेजरपे फ्लो के माध्यम से भेजने के लिए राशि दर्ज करें",
+                enterAmountOfflineDesc = "%s के माध्यम से भेजने के लिए राशि दर्ज करें"
             )
+
 
             AppLanguage.KANNADA -> AppStrings(
                 appTitle = "ಟ್ರಸ್ಟ್‌ಪೇ",
@@ -532,8 +651,63 @@ object LocalizationManager {
                 voiceStopAudio = "ಆಡಿಯೋ ನಿಲ್ಲಿಸಿ",
                 voicePlayAudio = "ಆಡಿಯೋ ಪ್ಲೇ ಮಾಡಿ",
                 voiceClose = "ಮುಚ್ಚಿ",
-                voiceNotUnderstood = "ಕ್ಷಮಿಸಿ, ಅರ್ಥವಾಗಲಿಲ್ಲ. ನೀವು ಬ್ಯಾಲೆನ್ಸ್, ವಹಿವಾಟುಗಳು, ಸಿಂಕ್ ಸ್ಥಿತಿಯ ಬಗ್ಗೆ ಕೇಳಬಹುದು."
+                voiceNotUnderstood = "ಕ್ಷಮಿಸಿ, ಅರ್ಥವಾಗಲಿಲ್ಲ. ನೀವು ಬ್ಯಾಲೆನ್ಸ್, ವಹಿವಾಟುಗಳು, ಸಿಂಕ್ ಸ್ಥಿತಿಯ ಬಗ್ಗೆ ಕೇಳಬಹುದು.",
+
+                archRule1 = "ಯಾವುದೇ ಪರ್ಯಾಯ ಕರೆನ್ಸಿ ಅಥವಾ ಟೋಕನ್ ರಚಿಸುವುದಿಲ್ಲ",
+                archRule2 = "ಯುಪಿಐ ಬದಲಾಯಿಸುವುದಿಲ್ಲ; ರೇಜರ್‌ಪೇ ಆಟೋಪೇ ಜೊತೆಗೆ ಸಂಯೋಜನೆಗೊಳ್ಳುತ್ತದೆ",
+                archRule3 = "ಆಫ್‌ಲೈನ್ ವಹಿವಾಟುಗಳನ್ನು 'ಆಫ್‌ಲೈನ್ ಅಧಿಕೃತ' ಎಂದು ಗುರುತಿಸಲಾಗುತ್ತದೆ, ಇತ್ಯರ್ಥವಾಗಿಲ್ಲ",
+                archRule4 = "ನಿರ್ದಿಷ್ಟ ಎಕ್ಸ್‌ಪೋಸರ್ ಮಿತಿಗಳು (ಡಬಲ್-ಸ್ಪೆಂಡ್‌ಗೆ ಯಾವುದೇ ಎಐ ಇಲ್ಲ)",
+                archRule5 = "Ed25519 ಅಸಮಪಾರ್ಶ್ವದ ಕ್ರಿಪ್ಟೋಗ್ರಾಫಿಕ್ ಸಹಿ",
+                archRule6 = "ಐಸೋಲೇಷನ್ ಫಾರೆಸ್ಟ್ ಮತ್ತು ಎಕ್ಸ್‌ಜಿಬೂಸ್ಟ್ ಎಂಎಲ್ ನಡವಳಿಕೆಯ ಸ್ಕೋರಿಂಗ್",
+                archRule7 = "ಅನುಸರಣೆ ಆಡಿಟ್‌ಗಾಗಿ ಜೆಮಿನಿ ಎಐ ವಿವರಣೆ",
+
+                pendingRoomQueue = "ಬಾಕಿ ಉಳಿದ ರೂಮ್ ಕ್ಯೂ",
+                lastSyncLabel = "ಕೊನೆಯ ಸಿಂಕ್",
+                justNow = "ಈಗಷ್ಟೇ",
+                notSyncedYet = "ಇನ್ನೂ ಸಿಂಕ್ ಆಗಿಲ್ಲ",
+                razorpayTargetLabel = "ರೇಜರ್‌ಪೇ ಬ್ಯಾಕೆಂಡ್ ಪ್ರಾಕ್ಸಿ ಟಾರ್ಗೆಟ್",
+                renderCloud = "ಕ್ಲೌಡ್ ರೆಂಡರ್",
+                localEmulator = "ಸ್ಥಳೀಯ ಎಮ್ಯುಲೇಟರ್",
+                accountSessionTitle = "ಖಾತೆ ಸೆಷನ್",
+                accountSessionDesc = "ನಿಮ್ಮ ಸಕ್ರಿಯ ಸೆಷನ್ ಕೊನೆಗೊಳಿಸಿ ಅಥವಾ ಇನ್ನೊಂದು ಬಳಕೆದಾರ ಖಾತೆಗೆ ಬದಲಾಯಿಸಿ.",
+                logoutButtonLabel = "ಲಾಗ್‌ಔಟ್ / ಖಾತೆ ಬದಲಾಯಿಸಿ",
+
+                transactionsDiscoveredLabel = "%d ವಹಿವಾಟುಗಳು ಕಂಡುಬಂದಿವೆ",
+                signaturesVerifiedLabel = "%d ಸಹಿಗಳು ಪರಿಶೀಲಿಸಲ್ಪಟ್ಟಿವೆ",
+                replayAttacksLabel = "%d ರಿಪ್ಲೇ ದಾಳಿಗಳು",
+                duplicateTxLabel = "%d ನಕಲಿ ವಹಿವಾಟುಗಳು",
+                highRiskFlaggedLabel = "%d ಹೆಚ್ಚಿನ ಅಪಾಯದ ವಹಿವಾಟು ಗುರುತಿಸಲಾಗಿದೆ",
+                lowRiskTxLabel = "%d ಕಡಿಮೆ ಅಪಾಯದ ವಹಿವಾಟುಗಳು",
+                settlementSummaryTitle = "ಇತ್ಯರ್ಥ ಸಾರಾಂಶ",
+                settlementSummaryDesc = "%d ಯಶಸ್ವಿ, %d ಪರಿಶೀಲನೆ ಅಗತ್ಯವಿದೆ",
+                reviewFlaggedItemButton = "ಗುರುತಿಸಲಾದ ವಹಿವಾಟು ಪರಿಶೀಲಿಸಿ ->",
+
+                anomalyInvestigationTitle = "ಅಸಂಗತತೆ ತನಿಖೆ",
+                riskSpectrumTitle = "ಅಪಾಯದ ಸಂಭವನೀಯತೆಯ ಶ್ರೇಣಿ",
+                riskSpectrumLow = "0% (ಕಡಿಮೆ)",
+                riskSpectrumMedium = "50% (ಮಧ್ಯಮ)",
+                riskSpectrumCritical = "100% (ಗಂಭೀರ)",
+                dualRiskAnalysisTitle = "ದ್ವಿಮುಖ ಅಪಾಯ ವಿಶ್ಲೇಷಣೆ ವ್ಯವಸ್ಥೆ",
+                ruleBasedScoreTitle = "ನಿಯಮ ಆಧಾರಿತ ಅಪಾಯ ಸ್ಕೋರ್",
+                ruleBasedScoreSubtitle = "ಸ್ಥಳೀಯ ನಿಯಮಗಳ ಇಂಜಿನ್ (FraudDetector.kt)",
+                mlModelScoreTitle = "ಎಂಎಲ್ ಮಾಡೆಲ್ ಅಪಾಯ ಸ್ಕೋರ್",
+                mlModelScoreSubtitle = "ತರಬೇತಿ ಪಡೆದ ಎಕ್ಸ್‌ಜಿಬೂಸ್ಟ್ ಮಾಡೆಲ್ ಮೂಲಕ ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
+                evaluatingText = "ಮೌಲ್ಯಮಾಪನ ಮಾಡಲಾಗುತ್ತಿದೆ...",
+                mlServiceUnavailable = "ಎಂಎಲ್ ಸೇವೆ ಲಭ್ಯವಿಲ್ಲ — ಸ್ಥಳೀಯ ನಿಯಮಗಳನ್ನು ಬಳಸಲಾಗುತ್ತಿದೆ",
+                mlFallbackNotice = "ರಿಮೋಟ್ ಎಂಡ್ ಪಾಯಿಂಟ್ ಲಭ್ಯವಿರಲಿಲ್ಲ ಅಥವಾ ಸಮಯ ಮುಗಿಯಿತು.",
+                retryMlServiceButton = "ಎಂಎಲ್ ಸೇವೆ ಮರುಪ್ರಯತ್ನಿಸಿ",
+                whyFlaggedTitle = "ಇದನ್ನು ಏಕೆ ಗುರುತಿಸಲಾಗಿದೆ",
+                investigateWithGeminiTitle = "ಜೆಮಿನಿ ಎಐ ಜೊತೆ ತನಿಖೆ ಮಾಡಿ",
+                geminiModelSubtitle = "ಮಾಡೆಲ್: gemini-2.5-flash • ವಿವರಣೆ ಮಾತ್ರ",
+                suggestedQuestionsTitle = "ಸೂಚಿಸಲಾದ ಪ್ರಶ್ನೆಗಳು:",
+                qWhyFlagged = "ಇದನ್ನು ಏಕೆ ಗುರುತಿಸಲಾಗಿದೆ?",
+                qIsDeviceCompromised = "ಸಾಧನವು ಅಪಾಯದಲ್ಲಿದೆಯೇ?",
+                qRecommendedActions = "ಶಿಫಾರಸು ಮಾಡಿದ ಕ್ರಮಗಳು",
+
+                enterAmountOnlineDesc = "ರೇಜರ್‌ಪೇ ಫ್ಲೋ ಮೂಲಕ ಕಳುಹಿಸಲು ಮೊತ್ತ ನಮೂದಿಸಿ",
+                enterAmountOfflineDesc = "%s ಮೂಲಕ ಕಳುಹಿಸಲು ಮೊತ್ತ ನಮೂದಿಸಿ"
             )
+
 
             AppLanguage.MALAYALAM -> AppStrings(
                 appTitle = "ട്രസ്റ്റ്പേ",
@@ -688,8 +862,63 @@ object LocalizationManager {
                 voiceStopAudio = "ഓഡിയോ നിർത്തുക",
                 voicePlayAudio = "ഓഡിയോ കേൾക്കുക",
                 voiceClose = "അടയ്ക്കുക",
-                voiceNotUnderstood = "ക്ഷമിക്കണം, മനസ്സിലായില്ല. ബാലൻസ്, ഇടപാടുകൾ, സിങ്ക് സ്റ്റാറ്റസ് എന്നിവ ചോദിക്കാം."
+                voiceNotUnderstood = "ക്ഷമിക്കണം, മനസ്സിലായില്ല. ബാലൻസ്, ഇടപാടുകൾ, സിങ്ക് സ്റ്റാറ്റസ് എന്നിവ ചോദിക്കാം.",
+
+                archRule1 = "മറ്റൊരു കറൻസിയോ ടോക്കണോ സൃഷ്ടിക്കുന്നില്ല",
+                archRule2 = "യുപിഐക്ക് പകരമല്ല; റേസർപേ ഓട്ടോപേയുമായി സംയോജിപ്പിച്ചിരിക്കുന്നു",
+                archRule3 = "ഓഫ്‌ലൈൻ ഇടപാടുകൾ 'ഓഫ്‌ലൈൻ അംഗീകൃതം' എന്ന് രേഖപ്പെടുത്തുന്നു, തീർപ്പാക്കിയിട്ടില്ല",
+                archRule4 = "കൃത്യമായ എക്സ്പോഷർ പരിധികൾ (ഡബിൾ-സ്പെൻഡിന് എഐ ഇല്ല)",
+                archRule5 = "Ed25519 ക്രിപ്റ്റോഗ്രാഫിക് സിഗ്നേച്ചർ",
+                archRule6 = "ഐസൊലേഷൻ ഫോറസ്റ്റ് & എക്സ്ജിബൂസ്റ്റ് എംഎൽ സ്കോറിംഗ്",
+                archRule7 = "ഓഡിറ്റിനായി ജെമിനി എഐ വിശദീകരണം",
+
+                pendingRoomQueue = "ബാക്കിയുള്ള റൂം ക്യൂ",
+                lastSyncLabel = "അവസാന സമന്വയം",
+                justNow = "ഇപ്പോൾ",
+                notSyncedYet = "ഇതുവരെ സമന്വയിപ്പിച്ചിട്ടില്ല",
+                razorpayTargetLabel = "റേസർപേ ബാക്കെൻഡ് പ്രോക്സി ടാർഗെറ്റ്",
+                renderCloud = "ക്ലൗഡ് റെൻഡർ",
+                localEmulator = "ലോക്കൽ എമുലേറ്റർ",
+                accountSessionTitle = "അക്കൗണ്ട് സെഷൻ",
+                accountSessionDesc = "നിങ്ങളുടെ സെഷൻ അവസാനിപ്പിക്കുക അല്ലെങ്കിൽ മറ്റൊരു ഉപയോക്താവിലേക്ക് മാറുക.",
+                logoutButtonLabel = "ലോഗ് ഔട്ട് / അക്കൗണ്ട് മാറുക",
+
+                transactionsDiscoveredLabel = "%d ഇടപാടുകൾ കണ്ടെത്തി",
+                signaturesVerifiedLabel = "%d ഒപ്പുകൾ പരിശോധിച്ചു",
+                replayAttacksLabel = "%d റീപ്ലേ ആക്രമണങ്ങൾ",
+                duplicateTxLabel = "%d ഡ്യൂപ്ലിക്കേറ്റ് ഇടപാടുകൾ",
+                highRiskFlaggedLabel = "%d ഉയർന്ന റിസ്ക് ഇടപാട് തടഞ്ഞു",
+                lowRiskTxLabel = "%d കുറഞ്ഞ റിസ്ക് ഇടപാടുകൾ",
+                settlementSummaryTitle = "സെറ്റിൽമെന്റ് സംഗ്രഹം",
+                settlementSummaryDesc = "%d വിജയിച്ചു, %d പരിശോധന ആവശ്യമാണ്",
+                reviewFlaggedItemButton = "തടഞ്ഞ ഇടപാട് പരിശോധിക്കുക ->",
+
+                anomalyInvestigationTitle = "അപാകത പരിശോധന",
+                riskSpectrumTitle = "റിസ്ക് സാധ്യത വിവരങ്ങൾ",
+                riskSpectrumLow = "0% (കുറഞ്ഞത്)",
+                riskSpectrumMedium = "50% (ഇടത്തരം)",
+                riskSpectrumCritical = "100% (ഗുരുതരം)",
+                dualRiskAnalysisTitle = "ഇരട്ട റിസ്ക് വിശകലന സംവിധാനം",
+                ruleBasedScoreTitle = "നിയമാധിഷ്ഠിത റിസ്ക് സ്കോർ",
+                ruleBasedScoreSubtitle = "ലോക്കൽ എഞ്ചിൻ (FraudDetector.kt)",
+                mlModelScoreTitle = "എംഎൽ മോഡൽ റിസ്ക് സ്കോർ",
+                mlModelScoreSubtitle = "പരിശീലനം ലഭിച്ച എക്സ്ജിബൂസ്റ്റ് മോഡൽ വഴി പരിശോധിച്ചു",
+                evaluatingText = "പരിശോധിക്കുന്നു...",
+                mlServiceUnavailable = "എംഎൽ സേവനം ലഭ്യമല്ല — ലോക്കൽ നിയമങ്ങൾ ഉപയോഗിക്കുന്നു",
+                mlFallbackNotice = "സർവർ ലഭ്യമായിരുന്നില്ല. സത്യസന്ധമായ ഫോൾബാക്ക് സജീവമാണ്.",
+                retryMlServiceButton = "എംഎൽ സേവനം വീണ്ടും ശ്രമിക്കുക",
+                whyFlaggedTitle = "എന്തുകൊണ്ട് തടയപ്പെട്ടു",
+                investigateWithGeminiTitle = "ജെമിനി എഐ ഉപയോഗിച്ച് പരിശോധിക്കുക",
+                geminiModelSubtitle = "മോഡൽ: gemini-2.5-flash • വിശദീകരണം മാത്രം",
+                suggestedQuestionsTitle = "നിർദ്ദേശിച്ച ചോദ്യങ്ങൾ:",
+                qWhyFlagged = "എന്തുകൊണ്ടാണ് ഇത് തടഞ്ഞത്?",
+                qIsDeviceCompromised = "ഉപകരണം സുരക്ഷിതമാണോ?",
+                qRecommendedActions = "ശിപാർശ ചെയ്യുന്ന നടപടികൾ",
+
+                enterAmountOnlineDesc = "റേസർപേ വഴി അയയ്ക്കാൻ തുക നൽകുക",
+                enterAmountOfflineDesc = "%s വഴി അയയ്ക്കാൻ തുക നൽകുക"
             )
+
         }
     }
 }

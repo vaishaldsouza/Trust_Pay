@@ -174,28 +174,28 @@ fun ActivitySyncScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         SyncCheckItem(
-                            label = "${syncState.discoveredCount.coerceAtLeast(5)} transactions discovered",
+                            label = strings.transactionsDiscoveredLabel.format(syncState.discoveredCount.coerceAtLeast(5)),
                             isSuccess = true
                         )
                         SyncCheckItem(
-                            label = "${syncState.verifiedSignaturesCount.coerceAtLeast(5)} signatures verified",
+                            label = strings.signaturesVerifiedLabel.format(syncState.verifiedSignaturesCount.coerceAtLeast(5)),
                             isSuccess = true
                         )
                         SyncCheckItem(
-                            label = "${syncState.replayAttackCount} replay attacks",
+                            label = strings.replayAttacksLabel.format(syncState.replayAttackCount),
                             isSuccess = true
                         )
                         SyncCheckItem(
-                            label = "${syncState.duplicateCount} duplicate transactions",
+                            label = strings.duplicateTxLabel.format(syncState.duplicateCount),
                             isSuccess = true
                         )
                         SyncCheckItem(
-                            label = "${syncState.highRiskCount.coerceAtLeast(1)} high-risk transaction flagged",
+                            label = strings.highRiskFlaggedLabel.format(syncState.highRiskCount.coerceAtLeast(1)),
                             isSuccess = false,
                             isWarning = true
                         )
                         SyncCheckItem(
-                            label = "${syncState.lowRiskCount.coerceAtLeast(4)} low-risk transactions",
+                            label = strings.lowRiskTxLabel.format(syncState.lowRiskCount.coerceAtLeast(4)),
                             isSuccess = true
                         )
                     }
@@ -214,12 +214,12 @@ fun ActivitySyncScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "Settlement Summary",
+                                    text = strings.settlementSummaryTitle,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = colors.primary
                                 )
                                 Text(
-                                    text = "${syncState.settledCount.coerceAtLeast(4)} successful, ${syncState.reviewRequiredCount.coerceAtLeast(1)} review required",
+                                    text = strings.settlementSummaryDesc.format(syncState.settledCount.coerceAtLeast(4), syncState.reviewRequiredCount.coerceAtLeast(1)),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = colors.onSurfaceVariant
                                 )
@@ -262,8 +262,9 @@ fun ActivitySyncScreen(
                             .height(46.dp)
                             .testTag("review_flagged_item_button")
                     ) {
-                        Text("Review Flagged Item ->", fontWeight = FontWeight.Bold)
+                        Text(strings.reviewFlaggedItemButton, fontWeight = FontWeight.Bold)
                     }
+
                 }
             }
         }

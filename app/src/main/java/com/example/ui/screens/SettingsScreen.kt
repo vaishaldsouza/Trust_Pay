@@ -433,7 +433,7 @@ fun SettingsScreen(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = if (isOnline) "LIVE SYNC" else "ROOM ONLY",
+                                text = if (isOnline) strings.liveSyncBadge else strings.roomOnlyBadge,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
@@ -450,7 +450,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Pending Room Queue", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                            Text(strings.pendingRoomQueue, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                             Text(
                                 text = "$pendingTransactionsCount transaction(s)",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
@@ -458,12 +458,12 @@ fun SettingsScreen(
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Last Sync", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                            Text(strings.lastSyncLabel, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                             Text(
                                 text = if (lastSyncTimestamp != null) {
                                     val diffSec = (System.currentTimeMillis() - lastSyncTimestamp) / 1000
-                                    if (diffSec < 60) "Just now" else "${diffSec / 60}m ago"
-                                } else "Not synced yet",
+                                    if (diffSec < 60) strings.justNow else strings.minutesAgo.format(diffSec / 60)
+                                } else strings.notSyncedYet,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.primary
                             )
@@ -474,7 +474,7 @@ fun SettingsScreen(
 
                     Column {
                         Text(
-                            text = "Razorpay Backend Proxy Target",
+                            text = strings.razorpayTargetLabel,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = colors.onSurfaceVariant
                         )
@@ -497,7 +497,7 @@ fun SettingsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "☁️ Render Cloud",
+                                    text = "☁️ ${strings.renderCloud}",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (isRender) FontWeight.Bold else FontWeight.Medium
                                     ),
@@ -516,7 +516,7 @@ fun SettingsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "💻 Local Emulator",
+                                    text = "💻 ${strings.localEmulator}",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = if (isLocal) FontWeight.Bold else FontWeight.Medium
                                     ),
@@ -526,11 +526,12 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Active Target: $razorpayBackendUrl",
+                            text = "${strings.activeTargetPrefix}: $razorpayBackendUrl",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             color = colors.secondary
                         )
                     }
+
                 }
             }
         }
@@ -733,13 +734,13 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ComplianceItem("Does not create an alternative currency or token", colors.secondary, colors.primary)
-                        ComplianceItem("Does not replace UPI; integrates with Razorpay Autopay", colors.secondary, colors.primary)
-                        ComplianceItem("Offline transactions labeled 'Offline Authorized', not settled", colors.secondary, colors.primary)
-                        ComplianceItem("Deterministic exposure limits (no AI for double-spend)", colors.secondary, colors.primary)
-                        ComplianceItem("Ed25519 asymmetric cryptographic signing", colors.secondary, colors.primary)
-                        ComplianceItem("Isolation Forest & XGBoost ML behavioral anomaly scoring", colors.secondary, colors.primary)
-                        ComplianceItem("Gemini AI explainability for compliance audit", colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule1, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule2, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule3, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule4, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule5, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule6, colors.secondary, colors.primary)
+                        ComplianceItem(strings.archRule7, colors.secondary, colors.primary)
                     }
                 }
             }
@@ -784,13 +785,13 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "Account Session",
+                        text = strings.accountSessionTitle,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = colors.primary
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "End your active session or switch to another user account. Returning will require logging in or choosing a demo role.",
+                        text = strings.accountSessionDesc,
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant
                     )
@@ -804,11 +805,12 @@ fun SettingsScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, colors.error),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Logout / Switch Account", fontWeight = FontWeight.Bold)
+                        Text(strings.logoutButtonLabel, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
+
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }
