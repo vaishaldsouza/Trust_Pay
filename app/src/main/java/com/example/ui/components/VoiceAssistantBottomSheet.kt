@@ -330,11 +330,28 @@ fun VoiceAssistantBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "TrustPay Voice Response",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.secondary
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (lastActionResult is VoiceActionResult.GeminiSpokenAnswer) "✨ Gemini AI Voice Guide" else "TrustPay Voice Response",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.secondary
+                                )
+                                if (lastActionResult is VoiceActionResult.GeminiSpokenAnswer) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(colors.primaryContainer)
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Read-Only",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                    }
+                                }
+                            }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (isSpeaking) {
@@ -416,32 +433,32 @@ fun VoiceAssistantBottomSheet(
 
                 val samplePrompts = when (language) {
                     AppLanguage.ENGLISH -> listOf(
-                        "What is my balance?",
-                        "Show recent transactions",
-                        "Is sync pending?",
+                        "How much can I spend offline today?",
+                        "Why was my last payment declined?",
+                        "What is my mandate status?",
                         "Pay ₹250 to Artisan Roasters",
-                        "Check offline exposure"
+                        "Show recent transactions"
                     )
                     AppLanguage.HINDI -> listOf(
-                        "मेरा बैलेंस क्या है?",
-                        "हाल के लेनदेन दिखाएं",
-                        "क्या सिंक लंबित है?",
+                        "आज मैं कितना ऑफलाइन खर्च कर सकता हूँ?",
+                        "मेरा पिछला भुगतान क्यों अस्वीकार हुआ?",
+                        "मैंडेट स्थिति क्या है?",
                         "आर्टिसन रोस्टर्स को ₹250 का भुगतान करें",
-                        "ऑफलाइन एक्सपोज़र जांचें"
+                        "हाल के लेनदेन दिखाएं"
                     )
                     AppLanguage.KANNADA -> listOf(
-                        "ನನ್ನ ಬ್ಯಾಲೆನ್ಸ್ ಎಷ್ಟು?",
-                        "ಇತ್ತೀಚಿನ ವಹಿವಾಟುಗಳನ್ನು ತೋರಿಸಿ",
-                        "ಸಿಂಕ್ ಬಾಕಿ ಇದೆಯೇ?",
+                        "ಇಂದು ಎಷ್ಟು ಆಫ್‌ಲೈನ್ ಖರ್ಚು ಮಾಡಬಹುದು?",
+                        "ನನ್ನ ಕೊನೆಯ ಪಾವತಿ ಏಕೆ ತಿರಸ್ಕೃತವಾಯಿತು?",
+                        "ಮ್ಯಾಂಡೇಟ್ ಸ್ಥಿತಿ ಏನು?",
                         "ಆರ್ಟಿಸನ್ ರೋಸ್ಟರ್ಸ್‌ಗೆ ₹250 ಪಾವತಿಸಿ",
-                        "ಆಫ್‌ಲೈನ್ ಎಕ್ಸ್‌ಪೋಸರ್ ಪರಿಶೀಲಿಸಿ"
+                        "ಇತ್ತೀಚಿನ ವಹಿವಾಟುಗಳನ್ನು ತೋರಿಸಿ"
                     )
                     AppLanguage.MALAYALAM -> listOf(
-                        "എന്റെ ബാലൻസ് എത്രയാണ്?",
-                        "സമീപകാല ഇടപാടുകൾ കാണിക്കുക",
-                        "സമന്വയം ബാക്കിയുണ്ടോ?",
+                        "ഇന്ന് എത്ര ഓഫ്‌ലൈനായി ചെലവഴിക്കാം?",
+                        "എന്റെ അവസാന പേയ്‌മെന്റ് നിരസിച്ചത് എന്തുകൊണ്ട്?",
+                        "മാൻഡേറ്റ് നില എന്താണ്?",
                         "ആർട്ടിസാൻ റോസ്റ്റേഴ്സിന് ₹250 അടയ്ക്കുക",
-                        "ഓഫ്‌ലൈൻ പരിധി പരിശോധിക്കുക"
+                        "സമീപകാല ഇടപാടുകൾ കാണിക്കുക"
                     )
                 }
 

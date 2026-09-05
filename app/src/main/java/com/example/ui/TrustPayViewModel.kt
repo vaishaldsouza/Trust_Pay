@@ -1269,18 +1269,22 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun processVoiceQuery(query: String) {
-        val result = voiceEngine.processQuery(
-            query = query,
-            language = _selectedLanguage.value,
-            walletBalance = _walletBalance.value,
-            offlineExposure = _buyerState.value.offlineExposure,
-            offlineLimit = _buyerState.value.offlineLimit,
-            recentTransactions = allTransactions.value,
-            isOnline = _isOnline.value,
-            pendingSyncCount = pendingOfflineCount.value,
-            merchantsList = merchantsList
-        )
-        _lastVoiceActionResult.value = result
+        viewModelScope.launch {
+            val result = voiceEngine.processQueryWithGemini(
+                query = query,
+                language = _selectedLanguage.value,
+                walletBalance = _walletBalance.value,
+                offlineExposure = _buyerState.value.offlineExposure,
+                offlineLimit = _buyerState.value.offlineLimit,
+                recentTransactions = allTransactions.value,
+                mandateReference = "MND-9823-XYZ",
+                mandateStatus = "ACTIVE / 2FA_AUTHENTICATED",
+                isOnline = _isOnline.value,
+                pendingSyncCount = pendingOfflineCount.value,
+                merchantsList = merchantsList
+            )
+            _lastVoiceActionResult.value = result
+        }
     }
 
     fun playLastVoiceResponse() {

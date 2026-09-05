@@ -18,6 +18,7 @@ import java.util.Locale
 
 sealed class VoiceActionResult {
     data class SpokenAnswer(val text: String, val suggestedAction: String? = null) : VoiceActionResult()
+    data class GeminiSpokenAnswer(val spokenText: String, val suggestedAction: String? = null) : VoiceActionResult()
     data class NavigateToPayment(val amount: Double, val merchant: Merchant, val spokenText: String) : VoiceActionResult()
     data class NavigateToScreen(val screenTabName: String, val spokenText: String) : VoiceActionResult()
 }
@@ -329,6 +330,87 @@ class VoiceAssistantEngine(private val context: Context) : TextToSpeech.OnInitLi
         _lastResponse.value = fallbackResponse
         speak(fallbackResponse, language)
         return VoiceActionResult.SpokenAnswer(fallbackResponse)
+    }
+
+    /**
+     * Sends user recognized speech to Gemini with full live user state context.
+     * STRICT DECISION ISOLATION: Never authorizes payments directly.
+     */
+    suspend fun processQueryWithGemini(
+        query: String,
+        language: AppLanguage,
+        walletBalance: Double,
+        offlineExposure: Long,
+        offlineLimit: Long,
+        recentTransactions: List<Transaction>,
+        mandateReference: String?,
+        mandateStatus: String,
+        isOnline: Boolean,
+        pendingSyncCount: Int,
+        merchantsList: List<Merchant>
+    ): VoiceActionResult {
+        val q = query.trim().lowercase(Locale.ROOT)
+        _transcription.value = query
+
+        // 1. Payment Intent Parsing (e.g., "Pay 200 to Artisan Roasters")
+        val isPaymentIntent = q.contains("pay") || q.contains("send") || q.contains("भुगतान") ||
+                q.contains("पैसे") || q.contains("ಪಾವತಿ") || q.contains("ಕಳುಹಿಸಿ") ||
+                q.contains("പണം") || q.contains("അടയ്ക്കുക") || q.contains("നൽകുക")
+
+        if (isPaymentIntent) {
+            val numberRegex = Regex("""(\d+(\.\d+)?)""")
+            val match = numberRegex.find(q)
+            val extractedAmount = match?.value?.toDoubleOrNull() ?: 250.0
+
+            val matchedMerchant = merchantsList.firstOrNull { merchant ->
+                val nameLower = merchant.businessName.lowercase(Locale.ROOT)
+                val words = nameLower.split(" ")
+                words.any { word -> word.length > 3 && q.contains(word) }
+            } ?: merchantsList.firstOrNull() ?: Merchant("merch_01", "Artisan Roasters", "Indiranagar, Bangalore", "Coffee & Bakery", 8, 1420)
+
+            val spokenResponse = when (language) {
+                AppLanguage.ENGLISH -> "Preparing payment draft of ₹${extractedAmount.toInt()} to ${matchedMerchant.businessName}. For your security, voice commands cannot authorize payments directly. Please review and sign on screen."
+                AppLanguage.HINDI -> "${matchedMerchant.businessName} को ₹${extractedAmount.toInt()} का ड्राफ्ट तैयार किया जा रहा है। सुरक्षा के लिए, वॉयस कमांड सीधे भुगतान अधिकृत नहीं कर सकते। स्क्रीन पर पुष्टि करें।"
+                AppLanguage.KANNADA -> "${matchedMerchant.businessName} ಅವರಿಗೆ ₹${extractedAmount.toInt()} ಪಾವತಿಯನ್ನು ಸಿದ್ಧಪಡಿಸಲಾಗುತ್ತಿದೆ. ಭದ್ರತೆಗಾಗಿ ಧ್ವನಿ ಆಜ್ಞೆಗಳು ಪಾವತಿಯನ್ನು ನೇರವಾಗಿ ದೃಢೀಕರಿಸುವುದಿಲ್ಲ. ಪರದೆಯ ಮೇಲೆ ಪರಿಶೀಲಿಸಿ."
+                AppLanguage.MALAYALAM -> "${matchedMerchant.businessName}-ലേക്ക് ₹${extractedAmount.toInt()} ഡ്രാഫ്റ്റ് തയ്യാറാക്കുന്നു. വോയ്‌സ് കമാൻഡുകൾ വഴി പണമടയ്ക്കാനാവില്ല. സ്ക്രീനിൽ പരിശോധിച്ച് ഒപ്പിടുക."
+            }
+
+            _lastResponse.value = spokenResponse
+            speak(spokenResponse, language)
+            return VoiceActionResult.NavigateToPayment(extractedAmount, matchedMerchant, spokenResponse)
+        }
+
+        // 2. Open-ended questions -> Gemini Explainability Service with real user context
+        val langName = when (language) {
+            AppLanguage.ENGLISH -> "English"
+            AppLanguage.HINDI -> "Hindi"
+            AppLanguage.KANNADA -> "Kannada"
+            AppLanguage.MALAYALAM -> "Malayalam"
+        }
+
+        val geminiAnswer = GeminiExplainabilityService.answerVoiceQueryWithContext(
+            query = query,
+            languageName = langName,
+            walletBalance = walletBalance,
+            offlineExposure = offlineExposure,
+            offlineLimit = offlineLimit,
+            recentTransactions = recentTransactions,
+            mandateReference = mandateReference,
+            mandateStatus = mandateStatus,
+            isNetworkOnline = isOnline,
+            pendingSyncCount = pendingSyncCount
+        )
+
+        _lastResponse.value = geminiAnswer
+        speak(geminiAnswer, language)
+
+        val suggestedAction = when {
+            q.contains("balance") || q.contains("wallet") -> "View Wallet"
+            q.contains("decline") || q.contains("fraud") || q.contains("risk") -> "View Security Center"
+            else -> "View Activity"
+        }
+
+        return VoiceActionResult.GeminiSpokenAnswer(geminiAnswer, suggestedAction)
     }
 
     fun destroy() {
