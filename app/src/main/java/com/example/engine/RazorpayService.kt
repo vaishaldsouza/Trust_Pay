@@ -155,25 +155,28 @@ object RazorpayService {
             val responseStr = stream?.bufferedReader()?.use(BufferedReader::readText) ?: "{}"
             val json = JSONObject(responseStr)
 
-            if (responseCode in 200..299 && json.optBoolean("success")) {
-                val paymentId = json.optString("paymentId", "")
-                val settlementRef = json.optString("settlementRef", "")
-                Log.i(TAG, "[$LABEL] Settlement SETTLED for ${transaction.transactionId} -> Ref: $settlementRef")
+            val statusStr = json.optString("status", "SETTLEMENT_FAILED")
+            val isSuccess = responseCode in 200..299 && json.optBoolean("success") && statusStr == "SETTLED"
+
+            if (isSuccess) {
+                val paymentId = json.optString("paymentId", "pay_unknown")
+                val settlementRef = json.optString("settlementRef", "set_unknown")
+                Log.i(TAG, "[$LABEL] Settlement CAPTURED & SETTLED for ${transaction.transactionId} -> PaymentId: $paymentId, Ref: $settlementRef")
                 return@withContext SettlementResult(
                     isSuccess = true,
                     settlementRef = settlementRef,
                     paymentId = paymentId,
                     amount = transaction.amount,
-                    note = "$LABEL | Razorpay Order Charge Executed"
+                    note = "$LABEL | Razorpay Recurring Charge Captured ($paymentId)"
                 )
             } else {
-                val reason = json.optString("reason", "SETTLEMENT_FAILED")
-                val errorMsg = json.optString("error", "Mandate settlement declined by Razorpay API.")
-                Log.e(TAG, "[$LABEL] Settlement FAILED for ${transaction.transactionId}: $reason - $errorMsg")
+                val reason = json.optString("reason", statusStr)
+                val errorMsg = json.optString("error", json.optString("note", "Mandate settlement not captured by Razorpay API."))
+                Log.e(TAG, "[$LABEL] Settlement NOT SETTLED for ${transaction.transactionId}: Status=$statusStr, Reason=$reason - $errorMsg")
                 return@withContext SettlementResult(
                     isSuccess = false,
                     settlementRef = "UNREACHABLE",
-                    paymentId = "NONE",
+                    paymentId = json.optString("paymentId", "NONE"),
                     amount = transaction.amount,
                     note = errorMsg,
                     failureReason = reason
