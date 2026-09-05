@@ -39,6 +39,10 @@ import com.example.engine.FraudDetector
 import com.example.engine.MlFraudEngine
 import com.example.engine.MlEvaluationResult
 import com.example.engine.GeminiExplainabilityService
+import com.example.engine.ChatbotEngine
+import com.example.engine.ChatMessage
+import com.example.engine.ChatSender
+import com.example.engine.AppStateContext
 import com.example.engine.ModeSelectorChoice
 import com.example.engine.RazorpayService
 import com.example.engine.SyncEngine
@@ -287,6 +291,60 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             _mlFraudResult.value = result
             _isMlFraudEvaluating.value = false
         }
+    }
+
+    // Shared Conversational AI Chatbot State
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _isChatbotThinking = MutableStateFlow(false)
+    val isChatbotThinking: StateFlow<Boolean> = _isChatbotThinking.asStateFlow()
+
+    fun sendChatMessage(text: String, isVoiceInput: Boolean = false) {
+        if (text.isBlank()) return
+        val userSender = if (isVoiceInput) ChatSender.USER_VOICE else ChatSender.USER_TEXT
+        val userMsg = ChatMessage(sender = userSender, text = text)
+
+        _chatMessages.value = _chatMessages.value + userMsg
+        _isChatbotThinking.value = true
+
+        viewModelScope.launch {
+            val stateContext = AppStateContext(
+                walletBalance = _walletBalance.value,
+                offlineExposure = _buyerState.value.offlineExposure,
+                offlineLimit = _buyerState.value.offlineLimit,
+                recentTransactions = allTransactions.value,
+                mandateReference = "MND-9823-XYZ",
+                mandateStatus = "ACTIVE / 2FA_AUTHENTICATED",
+                isOnline = _isOnline.value,
+                pendingSyncCount = pendingOfflineCount.value,
+                riskAlertsCount = _fraudAlerts.value.size
+            )
+
+            val botResponse = ChatbotEngine.processUserQuery(
+                query = text,
+                isVoiceInput = isVoiceInput,
+                stateContext = stateContext,
+                language = _selectedLanguage.value,
+                recentMessages = _chatMessages.value
+            )
+
+            _chatMessages.value = _chatMessages.value + botResponse
+            _isChatbotThinking.value = false
+
+            _lastVoiceActionResult.value = VoiceActionResult.GeminiSpokenAnswer(
+                spokenText = botResponse.text,
+                suggestedAction = if (botResponse.text.contains("Wallet")) "View Wallet" else "View Activity"
+            )
+
+            if (isVoiceInput) {
+                voiceEngine.speak(botResponse.text, _selectedLanguage.value)
+            }
+        }
+    }
+
+    fun clearChatHistory() {
+        _chatMessages.value = emptyList()
     }
 
     // Remote Supabase repositories
@@ -1259,7 +1317,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             voiceEngine.startListening(
                 language = _selectedLanguage.value,
                 onResult = { recognizedText ->
-                    processVoiceQuery(recognizedText)
+                    sendChatMessage(recognizedText, isVoiceInput = true)
                 },
                 onError = { errorMsg ->
                     onError(errorMsg)

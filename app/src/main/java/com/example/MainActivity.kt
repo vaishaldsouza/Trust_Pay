@@ -138,6 +138,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val isGeminiLoading by viewModel.isGeminiLoading.collectAsState()
     val mlEvaluation by viewModel.mlFraudResult.collectAsState()
     val isMlLoading by viewModel.isMlFraudEvaluating.collectAsState()
+    val chatMessages by viewModel.chatMessages.collectAsState()
+    val isChatbotThinking by viewModel.isChatbotThinking.collectAsState()
     val adminMetrics by viewModel.adminMetrics.collectAsState()
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
@@ -774,6 +776,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                 transcription = transcription,
                 lastResponse = lastVoiceResponse,
                 lastActionResult = lastVoiceActionResult,
+                chatMessages = chatMessages,
+                isThinking = isChatbotThinking,
+                onSendTextMessage = { text -> viewModel.sendChatMessage(text, isVoiceInput = false) },
+                onClearChat = { viewModel.clearChatHistory() },
                 onToggleListening = {
                     if (hasAudioPermission) {
                         viewModel.toggleVoiceListening { errorMsg ->
