@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.model.PeerTransactionRole
 import com.example.data.model.UserRole
 import com.example.engine.VoiceActionResult
 import com.example.ui.TrustPayViewModel
@@ -164,6 +165,7 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val isBalanceMasked by viewModel.isBalanceMasked.collectAsState()
+    val peerTransactionRole by viewModel.peerTransactionRole.collectAsState()
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
 
@@ -454,7 +456,6 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                     ScreenTab.HOME -> {
                         when (currentRole) {
                             UserRole.BUYER -> {
-                                val peerTransactionRole by viewModel.peerTransactionRole.collectAsState()
                                 val peerQrBitmap = remember(currentUser.id) {
                                     viewModel.qrEngine.generatePeerReceiveQr(currentUser.id, currentUser.name)
                                 }

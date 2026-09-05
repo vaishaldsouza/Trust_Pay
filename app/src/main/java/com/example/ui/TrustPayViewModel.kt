@@ -11,6 +11,7 @@ import com.example.data.local.UsedNonceEntity
 import com.example.data.model.Buyer
 import com.example.data.model.FraudAlert
 import com.example.data.model.Merchant
+import com.example.data.model.PeerTransactionRole
 import com.example.data.model.RiskSeverity
 import com.example.data.model.Transaction
 import com.example.data.model.TransactionMode
@@ -752,7 +753,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
                 nonce = nonce,
                 timestamp = timestamp,
                 mode = TransactionMode.AUTHORIZATION.name,
-                mandateReference = _buyerState.value.mandateReference
+                mandateReference = _buyerState.value.mandateReference ?: ""
             )
             val sig = CryptoEngine.signPayload(canonicalPayload, keyPair.private)
 
@@ -1031,7 +1032,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             nonce = nonce,
             timestamp = timestamp,
             mode = decision.selectedMode.name,
-            mandateReference = _buyerState.value.mandateReference
+            mandateReference = _buyerState.value.mandateReference ?: ""
         )
 
         // Sign payload with private key
