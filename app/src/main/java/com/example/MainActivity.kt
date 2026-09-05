@@ -688,9 +688,11 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             onTransactionClick = { tx ->
                                 viewModel.setActiveTransaction(tx)
                                 currentScreen = ScreenTab.CONFIRMATION
-                            }
+                            },
+                            isBalanceMasked = isBalanceMasked
                         )
                     }
+
 
                     ScreenTab.SECURITY -> {
                         val targetTx = activeTx ?: transactions.firstOrNull { it.status == com.example.data.model.TransactionStatus.FRAUD_REVIEW }

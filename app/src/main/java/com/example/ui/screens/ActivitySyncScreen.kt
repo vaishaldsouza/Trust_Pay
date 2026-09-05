@@ -1,7 +1,13 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,8 +68,10 @@ fun ActivitySyncScreen(
     onTriggerSync: () -> Unit,
     onReviewFlaggedItem: (String) -> Unit,
     onTransactionClick: (Transaction) -> Unit,
+    isBalanceMasked: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
 
@@ -306,14 +314,21 @@ fun ActivitySyncScreen(
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "₹${tx.amount}",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceMasked,
+                            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                            label = "ActivityTxAmountCrossfade"
+                        ) { masked ->
+                            Text(
+                                text = if (masked) "₹ • • •" else "₹${tx.amount}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
                         Spacer(modifier = Modifier.height(2.dp))
                         ModeChip(mode = tx.mode)
                     }
+
                 }
             }
         }

@@ -719,14 +719,21 @@ fun BuyerHomeScreen(
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "-₹${tx.amount}",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceMasked,
+                            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                            label = "HomeTxAmountCrossfade"
+                        ) { masked ->
+                            Text(
+                                text = if (masked) "-₹ • • •" else "-₹${tx.amount}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
                         Spacer(modifier = Modifier.height(2.dp))
                         ModeChip(mode = tx.mode)
                     }
+
                 }
             }
         }
