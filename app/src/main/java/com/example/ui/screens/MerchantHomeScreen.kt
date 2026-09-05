@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Merchant
@@ -98,6 +99,7 @@ fun MerchantHomeScreen(
     var acceptedLocally by remember { mutableStateOf(false) }
     var rejectedLocally by remember { mutableStateOf(false) }
     var showMerchantQrModal by remember { mutableStateOf(false) }
+    val merchantTxSlice = remember(transactions) { transactions.take(6) }
 
     LazyColumn(
         modifier = modifier
@@ -138,21 +140,30 @@ fun MerchantHomeScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(14.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = merchant.businessName,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary
+                            color = colors.primary,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = merchant.location,
                             style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant
+                            color = colors.onSurfaceVariant,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${merchant.category} • Terminal #${merchant.merchantId.takeLast(4)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = colors.secondary
+                            color = colors.secondary,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -191,17 +202,23 @@ fun MerchantHomeScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "BLE Terminal Broadcasting",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.primary
+                                color = colors.primary,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = if (isBleAdvertising) "GATT Service 47a25000 Active • Discoverable by Buyers"
                                 else "Advertising Stopped • Tap switch to broadcast POS terminal",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant
+                                color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                softWrap = true,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -247,17 +264,23 @@ fun MerchantHomeScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Wi-Fi Direct P2P Broadcasting",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.primary
+                                color = colors.primary,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = if (isWifiAdvertising) "DNS-SD Service _trustpay._tcp Active • TCP Server Port 8988"
                                 else "P2P Broadcasting Stopped • Tap switch to enable local TCP server",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant
+                                color = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant,
+                                softWrap = true,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -302,17 +325,23 @@ fun MerchantHomeScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "Acoustic POS (Soundwave Receiver)",
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.primary
+                                    color = colors.primary,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK pulses"
                                     else "Acoustic POS idle • Switch ON to accept payments via soundwaves",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant
+                                    color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
+                                    softWrap = true,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -660,10 +689,10 @@ fun MerchantHomeScreen(
                         .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(strings.dailyVolume, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                        Text(strings.dailyVolume, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("₹14,200", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = colors.primary)
-                        Text("28 ${strings.recentTransactions.lowercase()}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                        Text("₹14,200", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = colors.primary, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("28 ${strings.recentTransactions.lowercase()}", style = MaterialTheme.typography.labelSmall, color = colors.secondary, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
@@ -675,10 +704,10 @@ fun MerchantHomeScreen(
                         .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(strings.pendingTransactions, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                        Text(strings.pendingTransactions, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("${transactions.count { it.status == TransactionStatus.PENDING_SYNC || it.status == TransactionStatus.OFFLINE_ACCEPTED }}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = colors.primary)
-                        Text(strings.offlineStatus, style = MaterialTheme.typography.labelSmall, color = colors.warning)
+                        Text("${transactions.count { it.status == TransactionStatus.PENDING_SYNC || it.status == TransactionStatus.OFFLINE_ACCEPTED }}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = colors.primary, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(strings.offlineStatus, style = MaterialTheme.typography.labelSmall, color = colors.warning, softWrap = true, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -693,7 +722,7 @@ fun MerchantHomeScreen(
             )
         }
 
-        items(transactions.take(6)) { tx ->
+        items(items = merchantTxSlice, key = { it.transactionId }) { tx ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
                 shape = RoundedCornerShape(12.dp),
@@ -709,11 +738,14 @@ fun MerchantHomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "${tx.buyerName} • ${tx.transactionId}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = colors.primary
+                            color = colors.primary,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {

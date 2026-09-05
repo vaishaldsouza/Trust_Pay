@@ -27,12 +27,15 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
@@ -55,7 +58,18 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.engine.BleConnectionState
@@ -117,6 +131,126 @@ enum class OfflinePaymentOption(val label: String) {
     ULTRASONIC("Soundwave")
 }
 
+@Composable
+fun AnimatedSoundwaveGraphic(
+    isPlaying: Boolean = true,
+    modifier: Modifier = Modifier,
+    waveColor: Color = MaterialTheme.colorScheme.primary
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "soundwave_transition")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase_anim"
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(waveColor.copy(alpha = 0.08f))
+            .padding(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(if (isPlaying) Color(0xFF4CAF50) else waveColor)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isPlaying) "🔊 Transmitting 18.5 kHz Acoustic BFSK Wave Pulse..." else "Soundwave Audio Modem Ready",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = waveColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+        ) {
+            val width = size.width
+            val height = size.height
+            val centerY = height / 2f
+
+            // Animated Sine wave path 1
+            val path = Path()
+            val waveAmplitude = if (isPlaying) 16.dp.toPx() else 4.dp.toPx()
+            val waveFrequency = 0.025f
+
+            path.moveTo(0f, centerY)
+            var x = 0f
+            while (x <= width) {
+                val y = centerY + waveAmplitude * kotlin.math.sin(x * waveFrequency + phase).toFloat()
+                path.lineTo(x, y)
+                x += 4f
+            }
+
+            drawPath(
+                path = path,
+                color = waveColor.copy(alpha = 0.85f),
+                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // Animated Sine wave path 2
+            val path2 = Path()
+            val waveAmplitude2 = if (isPlaying) 10.dp.toPx() else 2.dp.toPx()
+            val waveFrequency2 = 0.04f
+
+            path2.moveTo(0f, centerY)
+            x = 0f
+            while (x <= width) {
+                val y = centerY + waveAmplitude2 * kotlin.math.cos(x * waveFrequency2 - phase * 1.5f).toFloat()
+                path2.lineTo(x, y)
+                x += 4f
+            }
+
+            drawPath(
+                path = path2,
+                color = waveColor.copy(alpha = 0.45f),
+                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // Animated Frequency bars
+            val barCount = 10
+            val barSpacing = width / (barCount + 1)
+            for (i in 1..barCount) {
+                val barX = i * barSpacing
+                val heightFactor = if (isPlaying) {
+                    (0.3f + 0.7f * kotlin.math.abs(kotlin.math.sin(phase + i * 0.6f))).toFloat()
+                } else {
+                    0.25f
+                }
+                val barHeight = (height * 0.65f) * heightFactor
+                val topY = centerY - barHeight / 2f
+                val bottomY = centerY + barHeight / 2f
+
+                drawLine(
+                    color = waveColor.copy(alpha = 0.6f + 0.4f * heightFactor),
+                    start = Offset(barX, topY),
+                    end = Offset(barX, bottomY),
+                    strokeWidth = 3.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
@@ -157,6 +291,7 @@ fun PaymentScreen(
     generateSignedTransactionQr: ((Transaction) -> Bitmap?)? = null,
     generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
     onOpenUssdClick: () -> Unit = {},
+    onPlaySoundwave: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -168,6 +303,11 @@ fun PaymentScreen(
     var isMerchantDropdownOpen by remember { mutableStateOf(false) }
     var showLimitExceededModal by remember { mutableStateOf(false) }
     var showPermissionRationaleDialog by remember { mutableStateOf(false) }
+
+    var isOnlineQrScanning by remember { mutableStateOf(false) }
+    var scannedOnlineVpa by remember { mutableStateOf<String?>(null) }
+    var scannedOnlineMerchantName by remember { mutableStateOf<String?>(null) }
+    var onlineQrError by remember { mutableStateOf<String?>(null) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -427,7 +567,11 @@ fun PaymentScreen(
                                             OnlinePaymentOption.TRUSTPAY_DIRECT -> "TrustPay"
                                         },
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = if (isSelected) Color.White else colors.onSurfaceVariant
+                                        color = if (isSelected) Color.White else colors.onSurfaceVariant,
+                                        softWrap = true,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                 }
                             }
@@ -501,7 +645,9 @@ fun PaymentScreen(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         ),
                                         color = if (isSelected) Color.White else colors.onSurfaceVariant,
-                                        maxLines = 1
+                                        softWrap = true,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -532,35 +678,182 @@ fun PaymentScreen(
                                     color = colors.primary
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(130.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(colors.surfaceContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
+
+                                if (onlineQrError != null) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = colors.errorContainer.copy(alpha = 0.25f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Text(
+                                                text = "⚠️ $onlineQrError",
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.error,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Button(
+                                                onClick = {
+                                                    onlineQrError = null
+                                                    isOnlineQrScanning = true
+                                                    onStartQrScan()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                            ) {
+                                                Text("Retry Camera Scan")
+                                            }
+                                        }
+                                    }
+                                } else if (isOnlineQrScanning) {
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.QrCodeScanner,
-                                            contentDescription = null,
-                                            tint = colors.secondary,
-                                            modifier = Modifier.size(44.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = "Target scanned: ${selectedMerchant.businessName}",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = colors.primary
-                                        )
-                                        Text(
-                                            text = "VPA: ${selectedMerchant.merchantId.lowercase()}@razorpay",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.onSurfaceVariant
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(220.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .border(2.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                        ) {
+                                            CameraQrScannerView(
+                                                onQrScanned = { payload ->
+                                                    isOnlineQrScanning = false
+                                                    parseOnlineUpiQr(
+                                                        payload = payload,
+                                                        onSuccess = { vpa, name, am ->
+                                                            scannedOnlineVpa = vpa
+                                                            scannedOnlineMerchantName = name
+                                                            upiIdInput = vpa
+                                                            if (!am.isNullOrBlank()) {
+                                                                onAmountChange(am.filter { it.isDigit() || it == '.' })
+                                                            }
+                                                            onlineQrError = null
+                                                        },
+                                                        onError = { err ->
+                                                            scannedOnlineVpa = null
+                                                            scannedOnlineMerchantName = null
+                                                            onlineQrError = err
+                                                        }
+                                                    )
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        OutlinedButton(
+                                            onClick = {
+                                                isOnlineQrScanning = false
+                                                onStopQrScan()
+                                            }
+                                        ) {
+                                            Text("Stop Camera Viewfinder")
+                                        }
+                                    }
+                                } else if (scannedOnlineVpa != null) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = colors.secondaryFixed.copy(alpha = 0.15f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.5.dp, colors.secondary, RoundedCornerShape(12.dp))
+                                    ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "✅ Dynamic UPI QR Scanned",
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = colors.secondary,
+                                                    style = MaterialTheme.typography.titleMedium
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(colors.secondary)
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Razorpay Gateway Ready",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Payee: ${scannedOnlineMerchantName ?: "Verified Merchant"}",
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.primary
+                                            )
+                                            Text(
+                                                text = "VPA: $scannedOnlineVpa",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.onSurfaceVariant
+                                            )
+                                            if (amountInput.isNotEmpty()) {
+                                                Text(
+                                                    text = "Amount: ₹$amountInput",
+                                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = colors.secondary
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            OutlinedButton(
+                                                onClick = {
+                                                    scannedOnlineVpa = null
+                                                    scannedOnlineMerchantName = null
+                                                    isOnlineQrScanning = true
+                                                    onStartQrScan()
+                                                }
+                                            ) {
+                                                Text("Scan Another QR")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(160.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(colors.surfaceContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.QrCodeScanner,
+                                                contentDescription = null,
+                                                tint = colors.primary,
+                                                modifier = Modifier.size(44.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "Scan Any UPI Merchant QR Code",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.primary
+                                            )
+                                            Text(
+                                                text = "Supports Razorpay dynamic QR & standard UPI URIs",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = colors.onSurfaceVariant
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Button(
+                                                onClick = {
+                                                    isOnlineQrScanning = true
+                                                    onStartQrScan()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
+                                            ) {
+                                                Text("Start Camera Scanner")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1010,7 +1303,7 @@ fun PaymentScreen(
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .size(40.dp)
@@ -1021,14 +1314,15 @@ fun PaymentScreen(
                                                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                                                         }
                                                         Spacer(modifier = Modifier.width(12.dp))
-                                                        Column {
-                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
-                                                            Text("GATT: ${ready.deviceAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
-                                                            Text("MTU: ${ready.mtu} bytes • Service 47a25000 Verified", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                            Text("GATT: ${ready.deviceAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                            Text("MTU: ${ready.mtu} bytes • Service 47a25000 Verified", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                         }
                                                     }
+                                                    Spacer(modifier = Modifier.width(8.dp))
                                                     TextButton(onClick = onDisconnectBleDevice) {
-                                                        Text("Disconnect", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text("Disconnect", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold, softWrap = false)
                                                     }
                                                 }
                                             }
@@ -1048,7 +1342,7 @@ fun PaymentScreen(
                                                         color = colors.onSurfaceVariant
                                                     )
                                                     TextButton(onClick = onStartBleScan) {
-                                                        Text("Start / Refresh Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text("Start / Refresh Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold, softWrap = false)
                                                     }
                                                 }
 
@@ -1088,7 +1382,7 @@ fun PaymentScreen(
                                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                                 verticalAlignment = Alignment.CenterVertically
                                                             ) {
-                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                                     Box(
                                                                         modifier = Modifier
                                                                             .size(36.dp)
@@ -1099,17 +1393,18 @@ fun PaymentScreen(
                                                                         Icon(Icons.Default.Bluetooth, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
                                                                     }
                                                                     Spacer(modifier = Modifier.width(10.dp))
-                                                                    Column {
-                                                                        Text(peer.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
-                                                                        Text("Signal: ${peer.rssi} dBm • ${if (peer.isPaired) "Paired" else "Discovered BLE"}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                                    Column(modifier = Modifier.weight(1f)) {
+                                                                        Text(peer.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                                        Text("Signal: ${peer.rssi} dBm • ${if (peer.isPaired) "Paired" else "Discovered BLE"}", style = MaterialTheme.typography.labelSmall, color = colors.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                                     }
                                                                 }
+                                                                Spacer(modifier = Modifier.width(8.dp))
                                                                 Button(
                                                                     onClick = { onConnectBleDevice(peer) },
                                                                     colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                                                                     shape = RoundedCornerShape(8.dp)
                                                                 ) {
-                                                                    Text("Connect GATT", fontSize = 11.sp)
+                                                                    Text("Connect GATT", fontSize = 11.sp, softWrap = false)
                                                                 }
                                                             }
                                                         }
@@ -1179,7 +1474,7 @@ fun PaymentScreen(
                                                         onClick = onOpenSettings,
                                                         colors = ButtonDefaults.buttonColors(containerColor = colors.secondary)
                                                     ) {
-                                                        Text("Open App Settings / Wi-Fi")
+                                                        Text("Open App Settings / Wi-Fi", softWrap = false)
                                                     }
                                                 }
                                             }
@@ -1200,17 +1495,17 @@ fun PaymentScreen(
                                                                 onClick = onOpenSettings,
                                                                 colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
                                                             ) {
-                                                                Text("Open App Settings")
+                                                                Text("Open App Settings", softWrap = false)
                                                             }
                                                             OutlinedButton(onClick = onRequestPermissions) {
-                                                                Text("Request Permissions")
+                                                                Text("Request Permissions", softWrap = false)
                                                             }
                                                         } else {
                                                             Button(
                                                                 onClick = onStartWifiDirectScan,
                                                                 colors = ButtonDefaults.buttonColors(containerColor = colors.primary)
                                                             ) {
-                                                                Text("Retry P2P Scan")
+                                                                Text("Retry P2P Scan", softWrap = false)
                                                             }
                                                         }
                                                     }
@@ -1233,7 +1528,7 @@ fun PaymentScreen(
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                         Box(
                                                             modifier = Modifier
                                                                 .size(40.dp)
@@ -1244,14 +1539,15 @@ fun PaymentScreen(
                                                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                                                         }
                                                         Spacer(modifier = Modifier.width(12.dp))
-                                                        Column {
-                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
-                                                            Text("P2P IP: ${ready.ipAddress} • Port 8988", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
-                                                            Text("${if (ready.isGroupOwner) "Group Owner (Server)" else "Group Client"} • TCP Socket Active", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(ready.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                            Text("P2P IP: ${ready.ipAddress} • Port 8988", style = MaterialTheme.typography.labelSmall, color = colors.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                            Text("${if (ready.isGroupOwner) "Group Owner (Server)" else "Group Client"} • TCP Socket Active", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                         }
                                                     }
+                                                    Spacer(modifier = Modifier.width(8.dp))
                                                     TextButton(onClick = onDisconnectWifiDirectPeer) {
-                                                        Text("Disconnect P2P", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text("Disconnect P2P", color = colors.error, fontSize = 11.sp, fontWeight = FontWeight.Bold, softWrap = false)
                                                     }
                                                 }
                                             }
@@ -1271,7 +1567,7 @@ fun PaymentScreen(
                                                         color = colors.onSurfaceVariant
                                                     )
                                                     TextButton(onClick = onStartWifiDirectScan) {
-                                                        Text("Start / Refresh P2P Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                        Text("Start / Refresh P2P Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold, softWrap = false)
                                                     }
                                                 }
 
@@ -1311,7 +1607,7 @@ fun PaymentScreen(
                                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                                 verticalAlignment = Alignment.CenterVertically
                                                             ) {
-                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                                                     Box(
                                                                         modifier = Modifier
                                                                             .size(36.dp)
@@ -1322,17 +1618,18 @@ fun PaymentScreen(
                                                                         Icon(Icons.Default.Sensors, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
                                                                     }
                                                                     Spacer(modifier = Modifier.width(10.dp))
-                                                                    Column {
-                                                                        Text(peer.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary)
-                                                                        Text("${peer.status} • IP: ${peer.ipAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
+                                                                    Column(modifier = Modifier.weight(1f)) {
+                                                                        Text(peer.deviceName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = colors.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                                        Text("${peer.status} • IP: ${peer.ipAddress}", style = MaterialTheme.typography.labelSmall, color = colors.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                                     }
                                                                 }
+                                                                Spacer(modifier = Modifier.width(8.dp))
                                                                 Button(
                                                                     onClick = { onConnectWifiDirectPeer(peer) },
                                                                     colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                                                                     shape = RoundedCornerShape(8.dp)
                                                                 ) {
-                                                                    Text("Connect P2P", fontSize = 11.sp)
+                                                                    Text("Connect P2P", fontSize = 11.sp, softWrap = false)
                                                                 }
                                                             }
                                                         }
@@ -1385,22 +1682,71 @@ fun PaymentScreen(
                                                 )
                                             }
                                             Spacer(modifier = Modifier.width(12.dp))
-                                            Column {
+                                            Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = "18.5 kHz Acoustic Dual-Tone BFSK Modem",
                                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                                    color = colors.primary
+                                                    color = colors.primary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
                                                     text = "Real PCM AudioTrack generation & microphone acoustic link",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.secondary
+                                                    color = colors.secondary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
                                                     text = "Target Receiver: ${selectedMerchant.businessName}",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.onSurfaceVariant
+                                                    color = colors.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        // Dynamic Moving Soundwave Graphic Animation (Plays when button clicked)
+                                        AnimatedSoundwaveGraphic(
+                                            isPlaying = isSoundwaveTesting,
+                                            waveColor = colors.primary
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    isSoundwaveTesting = true
+                                                    onPlaySoundwave()
+                                                },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("play_soundwave_button"),
+                                                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Play Soundwave Pulse", fontSize = 12.sp, fontWeight = FontWeight.Bold, softWrap = false)
+                                            }
+                                            OutlinedButton(
+                                                onClick = {
+                                                    isSoundwaveTesting = true
+                                                    onPlaySoundwave()
+                                                },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("replay_soundwave_button"),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Replay Soundwave", fontSize = 12.sp, softWrap = false)
                                             }
                                         }
                                     }
@@ -1592,7 +1938,10 @@ fun PaymentScreen(
                                 Text(
                                     text = "₹$preset",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (amountInput == preset) Color.White else colors.onSurface
+                                    color = if (amountInput == preset) Color.White else colors.onSurface,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -2123,4 +2472,58 @@ fun CameraQrScannerView(
         },
         modifier = modifier
     )
+}
+
+/**
+ * Parses online UPI QR payload strings (e.g. upi://pay?pa=... or raw VPA).
+ */
+fun parseOnlineUpiQr(
+    payload: String,
+    onSuccess: (vpa: String, merchantName: String, amount: String?) -> Unit,
+    onError: (String) -> Unit
+) {
+    val trimmed = payload.trim()
+    if (trimmed.startsWith("upi://pay", ignoreCase = true)) {
+        try {
+            val uri = android.net.Uri.parse(trimmed)
+            val pa = uri.getQueryParameter("pa")
+            val pn = uri.getQueryParameter("pn")
+            val am = uri.getQueryParameter("am")
+
+            if (!pa.isNullOrBlank()) {
+                val decodedName = if (!pn.isNullOrBlank()) {
+                    try {
+                        java.net.URLDecoder.decode(pn, "UTF-8")
+                    } catch (e: Exception) {
+                        pn
+                    }
+                } else {
+                    pa.substringBefore("@")
+                        .replace(".", " ")
+                        .replace("_", " ")
+                        .split(" ")
+                        .joinToString(" ") { word ->
+                            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.US) else it.toString() }
+                        }
+                }
+                onSuccess(pa, decodedName, am)
+            } else {
+                onError("Invalid UPI QR Code: missing payee VPA parameter ('pa').")
+            }
+        } catch (e: Exception) {
+            onError("Failed to parse UPI QR Code: ${e.message}")
+        }
+    } else if (trimmed.contains("@") && !trimmed.contains(" ") && trimmed.length in 5..100) {
+        // Raw VPA format e.g. "artisanroasters@okhdfcbank" or "merchant@razorpay"
+        val name = trimmed.substringBefore("@")
+            .replace(".", " ")
+            .replace("_", " ")
+            .split(" ")
+            .joinToString(" ") { word ->
+                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.US) else it.toString() }
+            }
+        onSuccess(trimmed, name, null)
+    } else {
+        onError("Invalid QR Code: Payload is not a recognized UPI payment format (expected upi://pay?pa=... or valid VPA).")
+    }
 }

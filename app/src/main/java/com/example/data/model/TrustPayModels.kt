@@ -48,7 +48,9 @@ data class User(
     val role: UserRole,
     val createdAt: Long = System.currentTimeMillis(),
     val deviceId: String,
-    val riskScore: Int = 12
+    val riskScore: Int = 12,
+    val phoneNumber: String = "+91 98765 43210",
+    val gender: String = "Prefer not to say"
 )
 
 data class Buyer(

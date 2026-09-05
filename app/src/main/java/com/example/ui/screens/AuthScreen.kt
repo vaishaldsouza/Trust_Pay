@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -261,15 +263,15 @@ fun AuthScreen(
                             color = colors.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(
+                        LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            UserRole.values().forEach { role ->
+                            items(UserRole.values()) { role ->
                                 FilterChip(
                                     selected = selectedRole == role,
                                     onClick = { selectedRole = role },
-                                    label = { Text(role.name, fontSize = 12.sp) },
+                                    label = { Text(role.name, fontSize = 12.sp, softWrap = true, maxLines = 1) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = colors.primaryContainer,
                                         selectedLabelColor = colors.onPrimaryContainer
@@ -473,12 +475,18 @@ private fun DemoRoleButton(
                 text = title,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                color = colors.primary
+                color = colors.primary,
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Text(
                 text = subtitle,
                 fontSize = 12.sp,
-                color = colors.onSurfaceVariant
+                color = colors.onSurfaceVariant,
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
 

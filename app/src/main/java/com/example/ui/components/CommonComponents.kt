@@ -71,6 +71,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 
+import androidx.compose.ui.text.style.TextOverflow
+
 @Composable
 fun TrustPayTopBar(
     isOnline: Boolean,
@@ -106,7 +108,8 @@ fun TrustPayTopBar(
             ) {
             // Brand Logo & Title
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
             ) {
                 Box(
                     modifier = Modifier
@@ -130,7 +133,9 @@ fun TrustPayTopBar(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = colors.primary
+                        color = colors.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = when (currentRole) {
@@ -139,7 +144,9 @@ fun TrustPayTopBar(
                             UserRole.ADMIN -> strings.adminRolePrefix
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurfaceVariant
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -379,7 +386,10 @@ fun ModeChip(
                     fontSize = 10.sp,
                     letterSpacing = 0.5.sp
                 ),
-                color = textColor
+                color = textColor,
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }

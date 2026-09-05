@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +61,7 @@ import com.example.engine.MlEvaluationResult
 import com.example.ui.theme.LocalAppColors
 import com.example.util.LocalAppLanguage
 import com.example.util.LocalAppStrings
+import com.example.ui.components.ShimmerBox
 
 @Composable
 fun SecurityCenterScreen(
@@ -276,15 +280,10 @@ fun SecurityCenterScreen(
                                 }
 
                                 if (isMlLoading) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp,
-                                            color = colors.primary
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(strings.evaluatingText, style = MaterialTheme.typography.labelSmall, color = colors.primary)
-                                    }
+                                    ShimmerBox(
+                                        modifier = Modifier.size(width = 90.dp, height = 24.dp),
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
                                 } else if (mlEvaluation != null && mlEvaluation.isAvailable) {
                                     val mlProb = mlEvaluation.fraudProbability ?: 0f
                                     val mlPctStr = String.format(java.util.Locale.US, "%.1f%%", mlProb * 100f)
@@ -471,26 +470,31 @@ fun SecurityCenterScreen(
                     // Suggested Questions
                     Text(strings.suggestedQuestionsTitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(
+                    LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        listOf(
-                            strings.qWhyFlagged,
-                            strings.qIsDeviceCompromised,
-                            strings.qRecommendedActions
-                        ).forEach { q ->
+                        items(
+                            listOf(
+                                strings.qWhyFlagged,
+                                strings.qIsDeviceCompromised,
+                                strings.qRecommendedActions
+                            )
+                        ) { q ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(colors.surfaceContainer)
                                     .clickable { onAskGemini(q) }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = q,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.primary
+                                    color = colors.primary,
+                                    softWrap = false,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

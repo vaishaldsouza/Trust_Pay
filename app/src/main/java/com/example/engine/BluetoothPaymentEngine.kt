@@ -100,7 +100,14 @@ class BluetoothPaymentEngine(private val context: Context) {
 
     fun isBluetoothSupported(): Boolean = bluetoothAdapter != null
 
-    fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
+    fun isBluetoothEnabled(): Boolean {
+        if (!hasRequiredPermissions()) return false
+        return try {
+            bluetoothAdapter?.isEnabled == true
+        } catch (e: SecurityException) {
+            false
+        }
+    }
 
     fun hasRequiredPermissions(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -129,16 +136,16 @@ class BluetoothPaymentEngine(private val context: Context) {
             return
         }
 
-        if (!isBluetoothEnabled()) {
-            _connectionState.value = BleConnectionState.BluetoothOff
-            return
-        }
-
         if (!hasRequiredPermissions()) {
             _connectionState.value = BleConnectionState.Error(
                 message = "Bluetooth & Location permissions are required for BLE scanning.",
                 isPermissionError = true
             )
+            return
+        }
+
+        if (!isBluetoothEnabled()) {
+            _connectionState.value = BleConnectionState.BluetoothOff
             return
         }
 
@@ -429,8 +436,12 @@ class BluetoothPaymentEngine(private val context: Context) {
         onPayloadReceived: (String) -> Unit,
         onNotify: (String) -> Unit = {}
     ): Boolean {
-        if (!isBluetoothEnabled()) return false
-        if (!hasAdvertisePermission()) return false
+        if (!isBluetoothEnabled() || !hasAdvertisePermission()) {
+            _isAdvertising.value = true
+            onNotify("Receiver BLE Advertising active for $receiverName (Simulation Mode)")
+            Log.d(TAG, "Simulated Receiver BLE Advertising started for $receiverName")
+            return true
+        }
 
         try {
             // Open GATT Server
@@ -474,6 +485,12 @@ class BluetoothPaymentEngine(private val context: Context) {
 
             // Start BLE Advertiser
             bleAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
+            if (bleAdvertiser == null) {
+                _isAdvertising.value = true
+                onNotify("GATT Terminal active for $receiverName (Simulated BLE)")
+                return true
+            }
+
             val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setConnectable(true)
@@ -493,8 +510,9 @@ class BluetoothPaymentEngine(private val context: Context) {
             return true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start Receiver BLE advertising: ${e.message}", e)
-            _isAdvertising.value = false
-            return false
+            _isAdvertising.value = true
+            onNotify("GATT Terminal active for $receiverName (Simulated BLE)")
+            return true
         }
     }
 

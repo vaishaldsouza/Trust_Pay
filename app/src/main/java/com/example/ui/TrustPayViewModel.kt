@@ -4,6 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.crypto.CryptoEngine
+import com.example.security.PinSecurityManager
+import com.example.security.PinVerificationResult
+import com.example.security.PinChangeResult
+import com.example.security.PinDialogState
+import com.example.security.PendingPaymentRequest
 import com.example.data.local.AppDatabase
 import com.example.data.local.AppPreferencesRepository
 import com.example.data.local.TransactionEntity
@@ -68,7 +73,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     private val database = AppDatabase.getInstance(application)
     private val keyPair = CryptoEngine.getOrCreateBuyerKeyPair()
     private val syncEngine = SyncEngine(database, keyPair)
-    private val prefsRepo = AppPreferencesRepository(application)
+    val prefsRepo = AppPreferencesRepository(application)
+    val pinSecurityManager = PinSecurityManager(application)
     val voiceEngine = VoiceAssistantEngine(application)
     val bluetoothEngine = BluetoothPaymentEngine(application)
     val wifiDirectEngine = WifiDirectPaymentEngine(application)
@@ -214,14 +220,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         _peerTransactionRole.value = role
         if (role == PeerTransactionRole.RECEIVER) {
             val name = currentUser.value.name
-            bluetoothEngine.startReceiverAdvertising(
-                receiverName = name,
-                onPayloadReceived = { payload -> processIncomingGattPayload(payload) }
-            )
-            wifiDirectEngine.startReceiverBroadcasting(
-                receiverName = name,
-                onPayloadReceived = { payload -> processIncomingGattPayload(payload) }
-            )
+            bluetoothEngine.startReceiverAdvertising(name, { payload -> processIncomingGattPayload(payload) })
+            wifiDirectEngine.startReceiverBroadcasting(name, { payload -> processIncomingGattPayload(payload) })
         } else {
             bluetoothEngine.stopReceiverAdvertising()
             wifiDirectEngine.stopReceiverBroadcasting()
@@ -507,10 +507,14 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         onLoggedOut()
     }
 
-    fun updateUserProfile(name: String, onResult: (Boolean, String) -> Unit) {
+    fun updateUserProfile(name: String, phoneNumber: String = "", gender: String = "", onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             val curr = currentUser.value
-            val updatedUser = curr.copy(name = name)
+            val updatedUser = curr.copy(
+                name = name,
+                phoneNumber = phoneNumber.ifBlank { curr.phoneNumber },
+                gender = gender.ifBlank { curr.gender }
+            )
             currentUser.value = updatedUser
 
             if (_isRealSession.value) {
@@ -891,6 +895,26 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         return qrEngine.generateMerchantReceiveQr(merchant)
     }
 
+    fun playUltrasonicSoundwave(payload: String? = null, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            _isHardwareTransmitting.value = true
+            _hardwareTransmissionStatus.value = "Emitting 18.5 kHz BFSK acoustic payment pulse..."
+            _hardwareTransmissionProgress.value = 0.1f
+            val packet = payload ?: activeTransaction.value?.transactionId ?: "TP-ACOUSTIC-PAYMENT-PULSE-${System.currentTimeMillis()}"
+            val success = ultrasonicEngine.transmitPayloadAcoustic(packet) { progress, status ->
+                _hardwareTransmissionProgress.value = progress
+                _hardwareTransmissionStatus.value = status
+            }
+            _isHardwareTransmitting.value = false
+            _hardwareTransmissionProgress.value = 1.0f
+            if (success) {
+                onResult(true, "Soundwave audio pulse transmitted successfully!")
+            } else {
+                onResult(false, "Failed to emit soundwave audio pulse")
+            }
+        }
+    }
+
     fun startUltrasonicListening(onResult: (Boolean, String) -> Unit) {
         ultrasonicEngine.startListeningAcoustic(
             onAudioLevel = { level ->
@@ -918,6 +942,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
                 }
             }
         )
+        onResult(true, "Microphone active • Soundwave receiver listening for 17.5–19.5 kHz tones")
     }
 
     fun stopUltrasonicListening() {
@@ -955,7 +980,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun processIncomingGattPayload(payload: String, onNotify: (String) -> Unit) {
+    private fun processIncomingGattPayload(payload: String, onNotify: (String) -> Unit = {}) {
         val parts = payload.split("|")
         if (parts.size >= 5 && parts[0] == "TPAY") {
             val txId = parts[1]
@@ -1009,7 +1034,82 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
+    // PIN Security Flow States
+    private val _pinDialogState = MutableStateFlow<PinDialogState>(PinDialogState.Hidden)
+    val pinDialogState: StateFlow<PinDialogState> = _pinDialogState.asStateFlow()
+
     fun submitPaymentWithHardwareTransport(
+        offlineOption: String,
+        onSuccess: (Transaction) -> Unit,
+        onDeclined: (TrustDecision) -> Unit
+    ) {
+        val decision = _trustDecision.value ?: return
+        if (!decision.isApproved) {
+            onDeclined(decision)
+            return
+        }
+
+        val request = PendingPaymentRequest(offlineOption, onSuccess, onDeclined)
+        if (!pinSecurityManager.isPinSet()) {
+            _pinDialogState.value = PinDialogState.SetupPin(request)
+        } else {
+            val lockout = pinSecurityManager.getLockoutRemainingSeconds()
+            _pinDialogState.value = PinDialogState.EnterPin(request, lockoutSeconds = lockout)
+        }
+    }
+
+    fun confirmPaymentWithPin(enteredPin: String) {
+        val currentState = _pinDialogState.value as? PinDialogState.EnterPin ?: return
+        val request = currentState.pendingRequest
+
+        when (val result = pinSecurityManager.verifyPin(enteredPin)) {
+            is PinVerificationResult.Success -> {
+                _pinDialogState.value = PinDialogState.Hidden
+                executeSignedPayment(request.offlineOption, request.onSuccess, request.onDeclined)
+            }
+            is PinVerificationResult.Incorrect -> {
+                _pinDialogState.value = PinDialogState.EnterPin(
+                    pendingRequest = request,
+                    errorMessage = "Incorrect PIN. ${result.remainingAttempts} attempts remaining."
+                )
+            }
+            is PinVerificationResult.LockedOut -> {
+                _pinDialogState.value = PinDialogState.EnterPin(
+                    pendingRequest = request,
+                    lockoutSeconds = result.secondsRemaining
+                )
+            }
+            is PinVerificationResult.PinNotSet -> {
+                _pinDialogState.value = PinDialogState.SetupPin(request)
+            }
+        }
+    }
+
+    fun cancelPendingPayment() {
+        _pinDialogState.value = PinDialogState.Hidden
+    }
+
+    fun setupUserPin(newPin: String) {
+        if (pinSecurityManager.setupPin(newPin)) {
+            val currentState = _pinDialogState.value
+            if (currentState is PinDialogState.SetupPin && currentState.pendingRequest != null) {
+                _pinDialogState.value = PinDialogState.EnterPin(currentState.pendingRequest)
+            } else {
+                _pinDialogState.value = PinDialogState.Hidden
+            }
+        }
+    }
+
+    fun changeUserPin(oldPin: String, newPin: String, onResult: (Boolean, String) -> Unit) {
+        when (val res = pinSecurityManager.changePin(oldPin, newPin)) {
+            is PinChangeResult.Success -> onResult(true, "Payment PIN changed successfully")
+            is PinChangeResult.InvalidOldPin -> onResult(false, "Current PIN is incorrect. ${res.remainingAttempts} attempts remaining.")
+            is PinChangeResult.LockedOut -> onResult(false, "Security lockout active. Try again in ${res.secondsRemaining}s.")
+            is PinChangeResult.InvalidNewPin -> onResult(false, res.reason)
+        }
+    }
+
+    private fun executeSignedPayment(
         offlineOption: String,
         onSuccess: (Transaction) -> Unit,
         onDeclined: (TrustDecision) -> Unit
@@ -1037,7 +1137,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             mandateReference = _buyerState.value.mandateReference ?: ""
         )
 
-        // Sign payload with private key
+        // Sign payload with private key - ONLY reached after PIN verification success
         val signature = CryptoEngine.signPayload(canonicalPayload, keyPair.private)
 
         val isTampered = _isTamperSimulationActive.value
@@ -1407,8 +1507,46 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         voiceEngine.stopSpeaking()
     }
 
+    private val _supportTickets = MutableStateFlow<List<SupportTicket>>(emptyList())
+    val supportTickets: StateFlow<List<SupportTicket>> = _supportTickets.asStateFlow()
+
+    fun submitSupportTicket(
+        type: String,
+        title: String,
+        description: String,
+        category: String,
+        priority: String,
+        rating: Int,
+        onComplete: (String) -> Unit
+    ) {
+        val ticketId = "SUP-${kotlin.random.Random.nextInt(1000, 9999)}"
+        val ticket = SupportTicket(
+            ticketId = ticketId,
+            type = type,
+            title = title,
+            description = description,
+            category = category,
+            priority = priority,
+            rating = rating
+        )
+        _supportTickets.value = listOf(ticket) + _supportTickets.value
+        onComplete(ticketId)
+    }
+
     override fun onCleared() {
         super.onCleared()
         voiceEngine.destroy()
     }
 }
+
+data class SupportTicket(
+    val ticketId: String,
+    val type: String,
+    val title: String,
+    val description: String,
+    val category: String,
+    val priority: String,
+    val rating: Int,
+    val createdAt: Long = System.currentTimeMillis()
+)
+

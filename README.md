@@ -319,3 +319,4 @@ Open in Android Studio, sync Gradle, run on two physical devices for the full of
 This project is licensed under the MIT License.
 
 *"Offline is not a failure state. It's a condition to design for."*
+

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
@@ -78,6 +79,7 @@ fun SettingsScreen(
     razorpayBackendUrl: String = com.example.engine.RazorpayService.RENDER_URL,
     onSelectRazorpayBackendUrl: (String) -> Unit = {},
     onLogout: () -> Unit = {},
+    onOpenSupportDesk: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -180,12 +182,20 @@ fun SettingsScreen(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             fontSize = 11.sp
                                         ),
-                                        color = if (isSelected) colors.onPrimary else colors.onSurface
+                                        color = if (isSelected) colors.onPrimary else colors.onSurface,
+                                        softWrap = true,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                     Text(
                                         text = lang.displayName,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = if (isSelected) colors.onPrimary.copy(alpha = 0.8f) else colors.onSurfaceVariant
+                                        color = if (isSelected) colors.onPrimary.copy(alpha = 0.8f) else colors.onSurfaceVariant,
+                                        softWrap = true,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                 }
                             }
@@ -292,7 +302,11 @@ fun SettingsScreen(
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                         ),
-                                        color = if (isSelected) colors.onPrimary else colors.onSurface
+                                        color = if (isSelected) colors.onPrimary else colors.onSurface,
+                                        softWrap = true,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                 }
                             }
@@ -369,6 +383,70 @@ fun SettingsScreen(
                             text = strings.launchVoiceAssistant,
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                         )
+                    }
+                }
+            }
+        }
+
+        // 3b. Support Desk & Feedback Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenSupportDesk() }
+                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .testTag("settings_support_desk_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "TrustPay Support Desk",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Report bugs, send feedback, or request features",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = onOpenSupportDesk,
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Open Desk", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -670,7 +748,11 @@ fun SettingsScreen(
                                 Text(
                                     text = role.name,
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (isSelected) colors.onPrimary else colors.onSurface
+                                    color = if (isSelected) colors.onPrimary else colors.onSurface,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
                         }

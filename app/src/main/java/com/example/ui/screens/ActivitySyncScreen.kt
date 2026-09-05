@@ -166,38 +166,36 @@ fun ActivitySyncScreen(
                         color = colors.primary
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Verification Checklist Items (matches Image 11!)
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        SyncCheckItem(
-                            label = strings.transactionsDiscoveredLabel.format(syncState.discoveredCount.coerceAtLeast(5)),
-                            isSuccess = true
-                        )
-                        SyncCheckItem(
-                            label = strings.signaturesVerifiedLabel.format(syncState.verifiedSignaturesCount.coerceAtLeast(5)),
-                            isSuccess = true
-                        )
-                        SyncCheckItem(
-                            label = strings.replayAttacksLabel.format(syncState.replayAttackCount),
-                            isSuccess = true
-                        )
-                        SyncCheckItem(
-                            label = strings.duplicateTxLabel.format(syncState.duplicateCount),
-                            isSuccess = true
-                        )
-                        SyncCheckItem(
-                            label = strings.highRiskFlaggedLabel.format(syncState.highRiskCount.coerceAtLeast(1)),
-                            isSuccess = false,
-                            isWarning = true
-                        )
-                        SyncCheckItem(
-                            label = strings.lowRiskTxLabel.format(syncState.lowRiskCount.coerceAtLeast(4)),
-                            isSuccess = true
-                        )
+                    if (syncState.isSyncing) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        com.example.ui.components.SyncActivitySkeleton()
+                    } else {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            SyncCheckItem(
+                                label = strings.transactionsDiscoveredLabel.format(syncState.discoveredCount.coerceAtLeast(5)),
+                                isSuccess = true
+                            )
+                            SyncCheckItem(
+                                label = strings.signaturesVerifiedLabel.format(syncState.verifiedSignaturesCount.coerceAtLeast(5)),
+                                isSuccess = true
+                            )
+                            SyncCheckItem(
+                                label = strings.replayAttacksLabel.format(syncState.replayAttackCount),
+                                isSuccess = true
+                            )
+                            SyncCheckItem(
+                                label = strings.duplicateTxLabel.format(syncState.duplicateCount),
+                                isSuccess = true
+                            )
+                            SyncCheckItem(
+                                label = strings.highRiskFlaggedLabel.format(syncState.highRiskCount.coerceAtLeast(1)),
+                                isSuccess = false,
+                                isWarning = true
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
@@ -278,7 +276,7 @@ fun ActivitySyncScreen(
             )
         }
 
-        items(transactions) { tx ->
+        items(items = transactions, key = { it.transactionId }) { tx ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
                 shape = RoundedCornerShape(12.dp),
@@ -294,11 +292,14 @@ fun ActivitySyncScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "${tx.merchantName} • ${tx.transactionId}",
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = colors.primary
+                            color = colors.primary,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {

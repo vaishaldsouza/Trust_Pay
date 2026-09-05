@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,6 +35,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +62,7 @@ fun PaymentConfirmationScreen(
     onForceSync: () -> Unit,
     onVoidTransaction: () -> Unit,
     onBack: () -> Unit,
+    onReplaySoundwave: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -108,7 +114,11 @@ fun PaymentConfirmationScreen(
                         Text(
                             text = transaction.transactionId,
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurfaceVariant
+                            color = colors.onSurfaceVariant,
+                            softWrap = true,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         ModeChip(mode = transaction.mode)
                     }
@@ -330,16 +340,18 @@ fun PaymentConfirmationScreen(
 
                             Spacer(modifier = Modifier.width(14.dp))
 
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = step.title,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if (step.isCompleted || step.isInProgress) colors.primary else colors.onSurfaceVariant
+                                    color = if (step.isCompleted || step.isInProgress) colors.primary else colors.onSurfaceVariant,
+                                    softWrap = true
                                 )
                                 Text(
                                     text = step.subtitle,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = colors.onSurfaceVariant
+                                    color = colors.onSurfaceVariant,
+                                    softWrap = true
                                 )
                             }
                         }
@@ -366,6 +378,30 @@ fun PaymentConfirmationScreen(
                     Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(strings.syncNow, fontWeight = FontWeight.Bold)
+                }
+
+                if (transaction.mode == TransactionMode.OFFLINE_VALUE || transaction.transactionId.contains("soundwave", ignoreCase = true)) {
+                    var isReplayingWave by remember { mutableStateOf(false) }
+                    AnimatedSoundwaveGraphic(
+                        isPlaying = isReplayingWave,
+                        waveColor = colors.primary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            isReplayingWave = true
+                            onReplaySoundwave()
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("replay_soundwave_button")
+                    ) {
+                        Icon(Icons.Default.Replay, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Replay Soundwave Pulse", fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 OutlinedButton(

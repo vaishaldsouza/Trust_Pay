@@ -74,11 +74,14 @@ fun AdminHomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = strings.adminOverview,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
+                        color = colors.primary,
+                        softWrap = true,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Box(
@@ -155,7 +158,7 @@ fun AdminHomeScreen(
         }
 
         // List of Alerts (clicking opens Security Center / TXN-4921)
-        items(fraudAlerts) { alert ->
+        items(items = fraudAlerts, key = { it.transactionId }) { alert ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
                 shape = RoundedCornerShape(14.dp),
@@ -191,12 +194,15 @@ fun AdminHomeScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = alert.transactionId,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.primary
+                                    color = colors.primary,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Box(
@@ -214,7 +220,9 @@ fun AdminHomeScreen(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 9.sp
                                         ),
-                                        color = if (alert.severity == RiskSeverity.HIGH) colors.error else colors.warning
+                                        color = if (alert.severity == RiskSeverity.HIGH) colors.error else colors.warning,
+                                        softWrap = true,
+                                        maxLines = 1
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -230,19 +238,27 @@ fun AdminHomeScreen(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 9.sp
                                         ),
-                                        color = colors.primary
+                                        color = colors.primary,
+                                        softWrap = true,
+                                        maxLines = 1
                                     )
                                 }
                             }
                             Text(
                                 text = "${alert.buyerName} • ${alert.merchantName}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
+                                color = colors.onSurfaceVariant,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
                                 text = alert.reasons.firstOrNull() ?: "Anomalous velocity detected",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = colors.error
+                                color = colors.error,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -287,7 +303,14 @@ private fun StatCard(
         modifier = modifier.border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant,
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 value,
@@ -300,10 +323,20 @@ private fun StatCard(
                     isWarning -> colors.warning
                     isAccent -> colors.secondary
                     else -> colors.primary
-                }
+                },
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+                softWrap = true,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
     }
 }

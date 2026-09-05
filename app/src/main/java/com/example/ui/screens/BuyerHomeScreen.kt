@@ -67,6 +67,15 @@ import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material3.Switch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.data.model.Buyer
 import com.example.data.model.PeerTransactionRole
 import com.example.data.model.Transaction
@@ -94,10 +103,35 @@ fun BuyerHomeScreen(
     onPeerTransactionRoleChange: (PeerTransactionRole) -> Unit = {},
     onAuthorizeMandate: () -> Unit = {},
     qrBitmap: android.graphics.Bitmap? = null,
+    isLoading: Boolean = false,
+    isBleAdvertising: Boolean = false,
+    onStartBleAdvertising: () -> Unit = {},
+    onStopBleAdvertising: () -> Unit = {},
+    isWifiAdvertising: Boolean = false,
+    onStartWifiAdvertising: () -> Unit = {},
+    onStopWifiAdvertising: () -> Unit = {},
+    isUltrasonicListening: Boolean = false,
+    ultrasonicAudioLevel: Float = 0.0f,
+    onStartUltrasonicListening: () -> Unit = {},
+    onStopUltrasonicListening: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
+
+    if (isLoading) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .padding(16.dp)
+        ) {
+            com.example.ui.components.BuyerHomeSkeleton()
+        }
+        return
+    }
+
+    val recentTxSlice = remember(transactions) { transactions.take(4) }
 
     LazyColumn(
         modifier = modifier
@@ -234,6 +268,8 @@ fun BuyerHomeScreen(
         // Receive Money Terminal View
         if (peerTransactionRole == PeerTransactionRole.RECEIVER) {
             item {
+                var selectedReceiveChannel by remember { mutableStateOf(com.example.ui.screens.OfflinePaymentOption.QR) }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
                     shape = RoundedCornerShape(16.dp),
@@ -257,92 +293,233 @@ fun BuyerHomeScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Peer-to-Peer Receiver Mode Active",
+                                text = "Peer-to-Peer Offline Receiver Terminal",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.primary
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Show this QR code or keep your device nearby to receive payments over BLE, Wi-Fi Direct, or Sound Waves.",
+                            text = "Select any of the 4 offline channels below to accept payments from senders nearby.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        if (qrBitmap != null) {
-                            Image(
-                                bitmap = qrBitmap.asImageBitmap(),
-                                contentDescription = "Peer Receive QR",
-                                modifier = Modifier
-                                    .size(200.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .border(1.dp, colors.outlineVariant, RoundedCornerShape(12.dp))
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(200.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(colors.surfaceContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("Generating P2P Receive QR...", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        // 4-Column Channel Tab Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(colors.surfaceContainer, RoundedCornerShape(12.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            com.example.ui.screens.OfflinePaymentOption.values().forEach { opt ->
+                                val isSelected = selectedReceiveChannel == opt
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (isSelected) colors.primary else Color.Transparent)
+                                        .clickable { selectedReceiveChannel = opt }
+                                        .padding(vertical = 8.dp, horizontal = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = when (opt) {
+                                                com.example.ui.screens.OfflinePaymentOption.QR -> Icons.Default.QrCode
+                                                com.example.ui.screens.OfflinePaymentOption.BLUETOOTH -> Icons.Default.Bluetooth
+                                                com.example.ui.screens.OfflinePaymentOption.WIFI -> Icons.Default.Sensors
+                                                com.example.ui.screens.OfflinePaymentOption.ULTRASONIC -> Icons.Default.GraphicEq
+                                            },
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else colors.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = when (opt) {
+                                                com.example.ui.screens.OfflinePaymentOption.QR -> "QR"
+                                                com.example.ui.screens.OfflinePaymentOption.BLUETOOTH -> "Bluetooth"
+                                                com.example.ui.screens.OfflinePaymentOption.WIFI -> "Wi-Fi"
+                                                com.example.ui.screens.OfflinePaymentOption.ULTRASONIC -> "Sound"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                            ),
+                                            color = if (isSelected) Color.White else colors.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.surfaceLow)
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.secondary)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "BLE Receiver GATT Server: LISTENING",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.secondary
-                                )
+                        when (selectedReceiveChannel) {
+                            com.example.ui.screens.OfflinePaymentOption.QR -> {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    if (qrBitmap != null) {
+                                        Image(
+                                            bitmap = qrBitmap.asImageBitmap(),
+                                            contentDescription = "Peer Receive QR",
+                                            modifier = Modifier
+                                                .size(180.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .border(1.dp, colors.outlineVariant, RoundedCornerShape(12.dp))
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(180.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(colors.surfaceContainer),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Generating P2P Receive QR...", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "📱 Show QR code to sender to scan with camera",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colors.secondary
+                                    )
+                                }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
+                            com.example.ui.screens.OfflinePaymentOption.BLUETOOTH -> {
+                                Row(
                                     modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.secondary)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Wi-Fi Direct DNS-SD Listener: ACTIVE",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.secondary
-                                )
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(colors.surfaceContainer)
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Broadcast Bluetooth GATT Terminal",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                        Text(
+                                            text = if (isBleAdvertising) "Broadcasting Service 47a25000 • Senders can discover & connect"
+                                            else "GATT Terminal Off • Switch ON to accept BLE payments",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = isBleAdvertising,
+                                        onCheckedChange = { active ->
+                                            if (active) onStartBleAdvertising() else onStopBleAdvertising()
+                                        }
+                                    )
+                                }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
+                            com.example.ui.screens.OfflinePaymentOption.WIFI -> {
+                                Row(
                                     modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.secondary)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Ultrasonic Acoustic FSK Modem: LISTENING",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.secondary
-                                )
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(colors.surfaceContainer)
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Wi-Fi Direct P2P Listener",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                        Text(
+                                            text = if (isWifiAdvertising) "DNS-SD Active • Port 8988 socket listening"
+                                            else "P2P Listener Off • Switch ON to accept Wi-Fi Direct payments",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isWifiAdvertising) colors.secondary else colors.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = isWifiAdvertising,
+                                        onCheckedChange = { active ->
+                                            if (active) onStartWifiAdvertising() else onStopWifiAdvertising()
+                                        }
+                                    )
+                                }
+                            }
+                            com.example.ui.screens.OfflinePaymentOption.ULTRASONIC -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(colors.surfaceContainer)
+                                        .padding(14.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Soundwave Receiver (Acoustic POS)",
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.primary
+                                            )
+                                            Text(
+                                                text = if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK tones"
+                                                else "Soundwave Receiver Off • Switch ON to accept audio payments",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant
+                                            )
+                                        }
+                                        Switch(
+                                            checked = isUltrasonicListening,
+                                            onCheckedChange = { active ->
+                                                if (active) onStartUltrasonicListening() else onStopUltrasonicListening()
+                                            }
+                                        )
+                                    }
+
+                                    if (isUltrasonicListening) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Goertzel FFT Signal Strength",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = "${(ultrasonicAudioLevel * 100).toInt()}% Signal",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = colors.secondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = { ultrasonicAudioLevel.coerceIn(0f, 1f) },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            color = if (ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
+                                            trackColor = colors.surfaceLow
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -920,27 +1097,27 @@ fun BuyerHomeScreen(
             }
         }
 
-        items(transactions.take(8)) { tx ->
+        items(items = recentTxSlice, key = { it.transactionId }) { tx ->
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onTransactionClick(tx) }
-                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                     .testTag("transaction_item_${tx.transactionId}")
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(34.dp)
                                 .clip(CircleShape)
                                 .background(colors.surfaceContainer),
                             contentAlignment = Alignment.Center
@@ -949,29 +1126,35 @@ fun BuyerHomeScreen(
                                 imageVector = if (tx.amount > 0) Icons.Default.Storefront else Icons.Default.ArrowDownward,
                                 contentDescription = null,
                                 tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = tx.merchantName,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.primary
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary,
+                                softWrap = true,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = tx.transactionId,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.onSurfaceVariant
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = colors.onSurfaceVariant,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 StatusBadge(status = tx.status)
                             }
                         }
                     }
 
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column(horizontalAlignment = Alignment.End) {
                         AnimatedContent(
                             targetState = isBalanceMasked,
@@ -980,11 +1163,10 @@ fun BuyerHomeScreen(
                         ) { masked ->
                             Text(
                                 text = if (masked) "-₹ • • •" else "-₹${tx.amount}",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.primary
                             )
                         }
-                        Spacer(modifier = Modifier.height(2.dp))
                         ModeChip(mode = tx.mode)
                     }
 
