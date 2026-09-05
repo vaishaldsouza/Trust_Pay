@@ -247,7 +247,7 @@ fun TrustPayTopBar(
                         Icon(
                             imageVector = Icons.Default.AccountCircle,
                             contentDescription = "User Profile",
-                            tint = colors.primary,
+                            tint = colors.onPrimaryContainer,
                             modifier = Modifier.size(22.dp)
                         )
                     }

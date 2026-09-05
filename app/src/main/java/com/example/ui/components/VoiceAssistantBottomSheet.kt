@@ -162,7 +162,7 @@ fun VoiceAssistantBottomSheet(
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = colors.primary,
+                            tint = colors.onPrimaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                     }

@@ -133,7 +133,7 @@ fun ProfileScreen(
                     text = user.name.take(1).uppercase(),
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colors.primary
+                    color = colors.onPrimaryContainer
                 )
             }
 
