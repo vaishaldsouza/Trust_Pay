@@ -50,8 +50,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.filled.Refresh
 import com.example.data.model.Transaction
 import com.example.engine.FraudDetector
+import com.example.engine.MlEvaluationResult
 import com.example.ui.theme.LocalAppColors
 import com.example.util.LocalAppLanguage
 import com.example.util.LocalAppStrings
@@ -65,11 +68,18 @@ fun SecurityCenterScreen(
     isGeminiLoading: Boolean,
     onAskGemini: (String) -> Unit,
     onBack: () -> Unit,
+    mlEvaluation: MlEvaluationResult? = null,
+    isMlLoading: Boolean = false,
+    onRetryMlEvaluation: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
     var customQueryInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(transaction.transactionId) {
+        onRetryMlEvaluation?.invoke()
+    }
 
     LazyColumn(
         modifier = modifier
@@ -103,7 +113,7 @@ fun SecurityCenterScreen(
             }
         }
 
-        // Risk Meter & Score Card (matches Image 17!)
+        // Risk Meter & Score Card with Dual Rule-Based + Deployed ML Model Scoring
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
@@ -113,32 +123,6 @@ fun SecurityCenterScreen(
                     .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Analysis",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurfaceVariant
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(colors.errorContainer)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "HIGH RISK ${(transaction.fraudProbability * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.error
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     Text(
                         text = "₹${transaction.amount}",
                         style = MaterialTheme.typography.headlineLarge.copy(
@@ -188,12 +172,193 @@ fun SecurityCenterScreen(
                         Text("100% (Critical)", style = MaterialTheme.typography.labelSmall, color = colors.error)
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // --- DUAL SCORING EVALUATION SECTION ---
                     Text(
-                        text = FraudDetector.MODEL_LABEL,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = colors.onSurfaceVariant
+                        text = "Dual Risk Analysis Systems",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // 1. Rule-Based Score Card
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = colors.surface),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Rule-Based Risk Score",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.primary
+                                    )
+                                    Text(
+                                        text = "Local Heuristic Engine (FraudDetector.kt)",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                                val rulePct = (transaction.fraudProbability * 100).toInt()
+                                val ruleSev = if (rulePct >= 70) "HIGH RISK" else if (rulePct >= 30) "MEDIUM RISK" else "LOW RISK"
+                                val ruleColor = if (rulePct >= 70) colors.error else if (rulePct >= 30) colors.warning else colors.secondary
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(ruleColor.copy(alpha = 0.15f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "$ruleSev $rulePct%",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = ruleColor
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // 2. ML Model Score Card (Remote XGBoost Microservice)
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (mlEvaluation?.isAvailable == false) colors.warningContainer.copy(alpha = 0.15f) else colors.surface
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = if (mlEvaluation?.isAvailable == false) colors.warning else colors.outlineVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "ML Model Risk Score",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.primaryContainer)
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "XGBoost",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                                color = colors.primary
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Trained XGBoost model validated on synthetic data",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+
+                                if (isMlLoading) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = colors.primary
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Evaluating...", style = MaterialTheme.typography.labelSmall, color = colors.primary)
+                                    }
+                                } else if (mlEvaluation != null && mlEvaluation.isAvailable) {
+                                    val mlProb = mlEvaluation.fraudProbability ?: 0f
+                                    val mlPctStr = String.format(java.util.Locale.US, "%.1f%%", mlProb * 100f)
+                                    val mlRiskLvl = mlEvaluation.riskLevel ?: "UNKNOWN"
+                                    val mlColor = if (mlRiskLvl.equals("HIGH", ignoreCase = true) || mlProb >= 0.7f) colors.error
+                                    else if (mlRiskLvl.equals("MEDIUM", ignoreCase = true) || mlProb >= 0.3f) colors.warning
+                                    else colors.secondary
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(mlColor.copy(alpha = 0.15f))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "$mlRiskLvl $mlPctStr",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = mlColor
+                                        )
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(colors.warningContainer)
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "OFFLINE",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.warning
+                                        )
+                                    }
+                                }
+                            }
+
+                            // If ML Service is unavailable or timed out, display explicit fallback banner
+                            if (!isMlLoading && (mlEvaluation == null || !mlEvaluation.isAvailable)) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = colors.warning,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "ML service unavailable — using local rules",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.warning
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Remote endpoint https://trust-pay-fraud-detection.onrender.com/predict was unreachable or timed out. Honest fallback active: no score was fabricated.",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = colors.onSurfaceVariant
+                                )
+                                if (onRetryMlEvaluation != null) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedButton(
+                                        onClick = onRetryMlEvaluation,
+                                        modifier = Modifier.height(30.dp),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Retry ML Service", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

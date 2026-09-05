@@ -36,6 +36,8 @@ import com.example.engine.WifiDirectPaymentEngine
 import com.example.engine.QrPaymentEngine
 import com.example.engine.QrScanState
 import com.example.engine.FraudDetector
+import com.example.engine.MlFraudEngine
+import com.example.engine.MlEvaluationResult
 import com.example.engine.GeminiExplainabilityService
 import com.example.engine.ModeSelectorChoice
 import com.example.engine.RazorpayService
@@ -270,6 +272,22 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     private val _isGeminiLoading = MutableStateFlow(false)
     val isGeminiLoading: StateFlow<Boolean> = _isGeminiLoading.asStateFlow()
+
+    // Remote ML Model Fraud Evaluation State
+    private val _mlFraudResult = MutableStateFlow<MlEvaluationResult?>(null)
+    val mlFraudResult: StateFlow<MlEvaluationResult?> = _mlFraudResult.asStateFlow()
+
+    private val _isMlFraudEvaluating = MutableStateFlow(false)
+    val isMlFraudEvaluating: StateFlow<Boolean> = _isMlFraudEvaluating.asStateFlow()
+
+    fun evaluateMlFraud(transaction: Transaction) {
+        viewModelScope.launch {
+            _isMlFraudEvaluating.value = true
+            val result = MlFraudEngine.predictFraud(transaction)
+            _mlFraudResult.value = result
+            _isMlFraudEvaluating.value = false
+        }
+    }
 
     // Remote Supabase repositories
     private val supabaseTxRepo = SupabaseTransactionRepository()

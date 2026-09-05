@@ -136,6 +136,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val fraudAlerts by viewModel.fraudAlerts.collectAsState()
     val geminiExplanation by viewModel.geminiExplanation.collectAsState()
     val isGeminiLoading by viewModel.isGeminiLoading.collectAsState()
+    val mlEvaluation by viewModel.mlFraudResult.collectAsState()
+    val isMlLoading by viewModel.isMlFraudEvaluating.collectAsState()
     val adminMetrics by viewModel.adminMetrics.collectAsState()
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
@@ -704,7 +706,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                             onAskGemini = { query ->
                                 viewModel.investigateWithGemini(targetTx, query)
                             },
-                            onBack = { currentScreen = ScreenTab.HOME }
+                            onBack = { currentScreen = ScreenTab.HOME },
+                            mlEvaluation = mlEvaluation,
+                            isMlLoading = isMlLoading,
+                            onRetryMlEvaluation = { viewModel.evaluateMlFraud(targetTx) }
                         )
                     }
 

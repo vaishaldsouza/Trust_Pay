@@ -12,7 +12,8 @@ data class FraudEvaluation(
     val riskPercentage: Int,
     val reasons: List<String>,
     val requiresReview: Boolean,
-    val modelSignature: String = "XGBoost + Isolation Forest (Synthetic V2.4)"
+    val modelSignature: String = "Local Heuristic Engine (FraudDetector.kt)",
+    val mlEvaluation: MlEvaluationResult? = null
 )
 
 object FraudDetector {

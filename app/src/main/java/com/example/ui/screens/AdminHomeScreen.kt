@@ -209,12 +209,28 @@ fun AdminHomeScreen(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "${alert.riskScore}% RISK",
+                                        text = "${alert.riskScore}% RULE RISK",
                                         style = MaterialTheme.typography.labelSmall.copy(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 9.sp
                                         ),
                                         color = if (alert.severity == RiskSeverity.HIGH) colors.error else colors.warning
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(colors.primaryContainer)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "XGBoost ML",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        ),
+                                        color = colors.primary
                                     )
                                 }
                             }
