@@ -165,6 +165,12 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
 
     val isUltrasonicListening by viewModel.isUltrasonicListening.collectAsState()
     val ultrasonicAudioLevel by viewModel.ultrasonicAudioLevel.collectAsState()
+    val isUltrasonicSignalDetected by viewModel.isUltrasonicSignalDetected.collectAsState()
+    val ultrasonicStatusText by viewModel.ultrasonicStatusText.collectAsState()
+
+    val isHardwareTransmitting by viewModel.isHardwareTransmitting.collectAsState()
+    val hardwareTransmissionProgress by viewModel.hardwareTransmissionProgress.collectAsState()
+    val hardwareTransmissionStatus by viewModel.hardwareTransmissionStatus.collectAsState()
 
     // Language, Theme & Balance Privacy State
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
@@ -561,6 +567,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     onStopWifiAdvertising = { viewModel.stopMerchantWifiDirectBroadcasting() },
                                     isUltrasonicListening = isUltrasonicListening,
                                     ultrasonicAudioLevel = ultrasonicAudioLevel,
+                                    isUltrasonicSignalDetected = isUltrasonicSignalDetected,
+                                    ultrasonicStatusText = ultrasonicStatusText,
                                     onStartUltrasonicListening = {
                                         if (hasAudioPermission) {
                                             viewModel.startUltrasonicListening { success, msg ->
@@ -628,6 +636,8 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                     onStopWifiAdvertising = { viewModel.stopMerchantWifiDirectBroadcasting() },
                                     isUltrasonicListening = isUltrasonicListening,
                                     ultrasonicAudioLevel = ultrasonicAudioLevel,
+                                    isUltrasonicSignalDetected = isUltrasonicSignalDetected,
+                                    ultrasonicStatusText = ultrasonicStatusText,
                                     onStartUltrasonicListening = {
                                         if (hasAudioPermission) {
                                             viewModel.startUltrasonicListening { success, msg ->
@@ -772,7 +782,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                 viewModel.playUltrasonicSoundwave(paymentAmountInput) { success, msg ->
                                     coroutineScope.launch { snackbarHostState.showSnackbar(msg) }
                                 }
-                            }
+                            },
+                            isHardwareTransmitting = isHardwareTransmitting,
+                            hardwareTransmissionProgress = hardwareTransmissionProgress,
+                            hardwareTransmissionStatus = hardwareTransmissionStatus
                         )
                     }
 

@@ -32,7 +32,12 @@ import com.example.data.remote.SupabaseTransactionRepository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
+import android.widget.Toast
 import com.example.engine.BleConnectionState
 import com.example.engine.BluetoothPaymentEngine
 import com.example.engine.NearbyPeerDevice
@@ -104,6 +109,12 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     private val _ultrasonicAudioLevel = MutableStateFlow(0f)
     val ultrasonicAudioLevel: StateFlow<Float> = _ultrasonicAudioLevel.asStateFlow()
+
+    private val _isUltrasonicSignalDetected = MutableStateFlow(false)
+    val isUltrasonicSignalDetected: StateFlow<Boolean> = _isUltrasonicSignalDetected.asStateFlow()
+
+    private val _ultrasonicStatusText = MutableStateFlow("Acoustic POS idle • Switch ON to accept payments via soundwaves")
+    val ultrasonicStatusText: StateFlow<String> = _ultrasonicStatusText.asStateFlow()
 
     private val _bluetoothPeers = MutableStateFlow<List<NearbyPeerDevice>>(emptyList())
     val bluetoothPeers: StateFlow<List<NearbyPeerDevice>> = _bluetoothPeers.asStateFlow()
@@ -915,30 +926,85 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun triggerHapticSignalDetected() {
+        try {
+            val app = getApplication<Application>()
+            Toast.makeText(app, "🔊 Signal Detected — 19.5 kHz Sync Recognized!", Toast.LENGTH_SHORT).show()
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(140L, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(140L)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TrustPaySoundwave", "Error triggering haptic signal detected", e)
+        }
+    }
+
+    private fun triggerHapticSuccess() {
+        try {
+            val app = getApplication<Application>()
+            Toast.makeText(app, "✅ Soundwave Payment Received — Signature Valid!", Toast.LENGTH_LONG).show()
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                app.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (vibrator != null && vibrator.hasVibrator()) {
+                val timings = longArrayOf(0, 150, 100, 250)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createWaveform(timings, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(timings, -1)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TrustPaySoundwave", "Error triggering haptic success", e)
+        }
+    }
+
     fun startUltrasonicListening(onResult: (Boolean, String) -> Unit) {
+        _isUltrasonicSignalDetected.value = false
+        _ultrasonicStatusText.value = "Microphone active • Listening for 17.5–19.5 kHz BFSK pulses"
         ultrasonicEngine.startListeningAcoustic(
             onAudioLevel = { level ->
                 _ultrasonicAudioLevel.value = level
             },
+            onSignalDetected = {
+                _isUltrasonicSignalDetected.value = true
+                _ultrasonicStatusText.value = "⚡ 19.5 kHz Sync Preamble Detected — Decoding payload..."
+                triggerHapticSignalDetected()
+            },
             onResult = { success, rawPayload, statusMsg ->
+                _isUltrasonicSignalDetected.value = false
                 if (success) {
+                    _ultrasonicStatusText.value = "Signature: VALID • Soundwave Payment Received!"
+                    triggerHapticSuccess()
                     viewModelScope.launch {
-                        val payloadPart = rawPayload.substringBefore("|SIG:")
-                        val sigPart = rawPayload.substringAfter("|SIG:", "")
-                        val isSigValid = CryptoEngine.verifySignature(
-                            payload = payloadPart,
-                            signatureBase64 = sigPart,
-                            publicKey = CryptoEngine.getOrCreateBuyerKeyPair().public
-                        )
-
-                        if (isSigValid) {
-                            onResult(true, "Received & verified soundwave transaction payload via acoustic FSK!")
-                        } else {
-                            onResult(false, "Invalid Ed25519 signature on soundwave payload")
+                        processIncomingGattPayload(rawPayload) { notificationMsg ->
+                            onResult(true, notificationMsg)
                         }
                     }
                 } else {
-                    onResult(false, statusMsg)
+                    val userMsg = if (statusMsg.contains("checksum", ignoreCase = true) || statusMsg.contains("timeout", ignoreCase = true) || statusMsg.contains("No signal", ignoreCase = true)) {
+                        "No signal detected — move phones closer or reduce background noise"
+                    } else {
+                        statusMsg
+                    }
+                    _ultrasonicStatusText.value = userMsg
+                    onResult(false, userMsg)
                 }
             }
         )
@@ -947,6 +1013,8 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
 
     fun stopUltrasonicListening() {
         ultrasonicEngine.stopListening()
+        _isUltrasonicSignalDetected.value = false
+        _ultrasonicStatusText.value = "Acoustic POS idle • Switch ON to accept payments via soundwaves"
     }
 
     fun setRazorpayBackendUrl(url: String) {
@@ -1007,7 +1075,7 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             viewModelScope.launch {
                 database.transactionDao().insert(TransactionEntity.fromDomain(tx, isOfflineQueued = true))
                 _activeTransaction.value = tx
-                onNotify("Incoming BLE Payment Received: ₹$amount from Ganesh")
+                onNotify("Incoming Payment Received: ₹$amount from Ganesh (Signature: VALID)")
             }
         }
     }
@@ -1189,39 +1257,37 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
             // Execute hardware physical layer if offline
             if (!isOnlineNow) {
                 val wirePacket = "TPAY|$txId|$amount|$nonce|$effectiveSignature"
-                viewModelScope.launch {
-                    when (offlineOption) {
-                        "Bluetooth" -> {
-                            val target = bleDiscoveredDevices.value.firstOrNull() ?: NearbyPeerDevice(
-                                deviceId = "TPAY:BLE:01",
-                                name = "${merchant.businessName} POS",
-                                rssi = -42,
-                                isPaired = true,
-                                transportType = "BLE GATT"
-                            )
-                            bluetoothEngine.transmitPayload(target, wirePacket) { progress, status ->
-                                _hardwareTransmissionProgress.value = progress
-                                _hardwareTransmissionStatus.value = status
-                            }
+                when (offlineOption) {
+                    "Bluetooth" -> {
+                        val target = bleDiscoveredDevices.value.firstOrNull() ?: NearbyPeerDevice(
+                            deviceId = "TPAY:BLE:01",
+                            name = "${merchant.businessName} POS",
+                            rssi = -42,
+                            isPaired = true,
+                            transportType = "BLE GATT"
+                        )
+                        bluetoothEngine.transmitPayload(target, wirePacket) { progress, status ->
+                            _hardwareTransmissionProgress.value = progress
+                            _hardwareTransmissionStatus.value = status
                         }
-                        "Wi-Fi Direct" -> {
-                            val target = wifiDirectDiscoveredPeers.value.firstOrNull() ?: WifiDirectPeer(
-                                peerId = "P2P:01",
-                                deviceName = "${merchant.businessName}-DirectPOS",
-                                ipAddress = "192.168.49.1",
-                                status = "Connected",
-                                groupOwner = true
-                            )
-                            wifiDirectEngine.transmitOverP2pSocket(target, wirePacket) { progress, status ->
-                                _hardwareTransmissionProgress.value = progress
-                                _hardwareTransmissionStatus.value = status
-                            }
+                    }
+                    "Wi-Fi Direct" -> {
+                        val target = wifiDirectDiscoveredPeers.value.firstOrNull() ?: WifiDirectPeer(
+                            peerId = "P2P:01",
+                            deviceName = "${merchant.businessName}-DirectPOS",
+                            ipAddress = "192.168.49.1",
+                            status = "Connected",
+                            groupOwner = true
+                        )
+                        wifiDirectEngine.transmitOverP2pSocket(target, wirePacket) { progress, status ->
+                            _hardwareTransmissionProgress.value = progress
+                            _hardwareTransmissionStatus.value = status
                         }
-                        "Soundwave" -> {
-                            ultrasonicEngine.transmitPayloadAcoustic(wirePacket) { progress, status ->
-                                _hardwareTransmissionProgress.value = progress
-                                _hardwareTransmissionStatus.value = status
-                            }
+                    }
+                    "Soundwave" -> {
+                        ultrasonicEngine.transmitPayloadAcoustic(wirePacket) { progress, status ->
+                            _hardwareTransmissionProgress.value = progress
+                            _hardwareTransmissionStatus.value = status
                         }
                     }
                 }

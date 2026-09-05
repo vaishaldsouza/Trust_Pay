@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Phone
@@ -112,6 +113,8 @@ fun BuyerHomeScreen(
     onStopWifiAdvertising: () -> Unit = {},
     isUltrasonicListening: Boolean = false,
     ultrasonicAudioLevel: Float = 0.0f,
+    isUltrasonicSignalDetected: Boolean = false,
+    ultrasonicStatusText: String? = null,
     onStartUltrasonicListening: () -> Unit = {},
     onStopUltrasonicListening: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -476,10 +479,10 @@ fun BuyerHomeScreen(
                                                 color = colors.primary
                                             )
                                             Text(
-                                                text = if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK tones"
+                                                text = ultrasonicStatusText ?: if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK tones"
                                                 else "Soundwave Receiver Off • Switch ON to accept audio payments",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant
+                                                color = if (isUltrasonicSignalDetected) colors.secondary else if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant
                                             )
                                         }
                                         Switch(
@@ -488,6 +491,33 @@ fun BuyerHomeScreen(
                                                 if (active) onStartUltrasonicListening() else onStopUltrasonicListening()
                                             }
                                         )
+                                    }
+
+                                    if (isUltrasonicSignalDetected) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(colors.secondary.copy(alpha = 0.2f))
+                                                .border(1.dp, colors.secondary, RoundedCornerShape(8.dp))
+                                                .padding(10.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = androidx.compose.material.icons.Icons.Default.FlashOn,
+                                                    contentDescription = null,
+                                                    tint = colors.secondary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "⚡ 19.5 kHz Sync Preamble Detected — Decoding payload...",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = colors.primary
+                                                )
+                                            }
+                                        }
                                     }
 
                                     if (isUltrasonicListening) {
@@ -515,7 +545,7 @@ fun BuyerHomeScreen(
                                                 .fillMaxWidth()
                                                 .height(6.dp)
                                                 .clip(RoundedCornerShape(3.dp)),
-                                            color = if (ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
+                                            color = if (isUltrasonicSignalDetected || ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
                                             trackColor = colors.surfaceLow
                                         )
                                     }

@@ -380,29 +380,28 @@ class VoiceAssistantEngine(private val context: Context) : TextToSpeech.OnInitLi
             return VoiceActionResult.NavigateToPayment(extractedAmount, matchedMerchant, spokenResponse)
         }
 
-        // 2. Open-ended questions -> Gemini Explainability Service with real user context
-        val langName = when (language) {
-            AppLanguage.ENGLISH -> "English"
-            AppLanguage.HINDI -> "Hindi"
-            AppLanguage.KANNADA -> "Kannada"
-            AppLanguage.MALAYALAM -> "Malayalam"
-        }
-
-        val geminiAnswer = GeminiExplainabilityService.answerVoiceQueryWithContext(
-            query = query,
-            languageName = langName,
+        // 2. Route Query through Shared ChatbotEngine Router (Local Matcher -> Offline Guard -> Gemini)
+        val stateContext = AppStateContext(
             walletBalance = walletBalance,
             offlineExposure = offlineExposure,
             offlineLimit = offlineLimit,
             recentTransactions = recentTransactions,
-            mandateReference = mandateReference,
+            mandateReference = mandateReference ?: "MND-9823-XYZ",
             mandateStatus = mandateStatus,
-            isNetworkOnline = isOnline,
-            pendingSyncCount = pendingSyncCount
+            isOnline = isOnline,
+            pendingSyncCount = pendingSyncCount,
+            riskAlertsCount = 0
         )
 
-        _lastResponse.value = geminiAnswer
-        speak(geminiAnswer, language)
+        val chatResult = ChatbotEngine.processUserQuery(
+            query = query,
+            isVoiceInput = true,
+            stateContext = stateContext,
+            language = language
+        )
+
+        _lastResponse.value = chatResult.text
+        speak(chatResult.text, language)
 
         val suggestedAction = when {
             q.contains("balance") || q.contains("wallet") -> "View Wallet"
@@ -410,7 +409,11 @@ class VoiceAssistantEngine(private val context: Context) : TextToSpeech.OnInitLi
             else -> "View Activity"
         }
 
-        return VoiceActionResult.GeminiSpokenAnswer(geminiAnswer, suggestedAction)
+        return if (chatResult.isLocalAnswer) {
+            VoiceActionResult.SpokenAnswer(chatResult.text, suggestedAction)
+        } else {
+            VoiceActionResult.GeminiSpokenAnswer(chatResult.text, suggestedAction)
+        }
     }
 
     fun destroy() {

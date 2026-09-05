@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -83,6 +84,8 @@ fun MerchantHomeScreen(
     onStopWifiAdvertising: () -> Unit = {},
     isUltrasonicListening: Boolean = false,
     ultrasonicAudioLevel: Float = 0.0f,
+    isUltrasonicSignalDetected: Boolean = false,
+    ultrasonicStatusText: String? = null,
     onStartUltrasonicListening: () -> Unit = {},
     onStopUltrasonicListening: () -> Unit = {},
     generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
@@ -110,7 +113,9 @@ fun MerchantHomeScreen(
     ) {
         item { Spacer(modifier = Modifier.height(4.dp)) }
 
-        // Merchant Business Header
+        // ==========================================
+        // 1. TOP HEADER / MERCHANT TERMINAL BANNER
+        // ==========================================
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
@@ -119,58 +124,110 @@ fun MerchantHomeScreen(
                     .fillMaxWidth()
                     .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(colors.primaryContainer),
-                        contentAlignment = Alignment.Center
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Storefront,
-                            contentDescription = null,
-                            tint = colors.secondaryFixedDim,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Storefront,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = merchant.businessName,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${merchant.category} • ${merchant.location}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Terminal Category Badge
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.secondaryFixed.copy(alpha = 0.4f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "POS Terminal",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.secondary
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Connection status pill
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isOnline) colors.secondary else colors.error)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isOnline) "Settlement Gateway Active (Razorpay)" else "Offline Mode: Receiving via Hardware P2P",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (isOnline) colors.secondary else colors.error
+                            )
+                        }
                         Text(
-                            text = merchant.businessName,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary,
-                            softWrap = true,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = merchant.location,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant,
-                            softWrap = true,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${merchant.category} • Terminal #${merchant.merchantId.takeLast(4)}",
+                            text = "Mandate Verified",
                             style = MaterialTheme.typography.labelSmall,
-                            color = colors.secondary,
-                            softWrap = true,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = colors.onSurfaceVariant
                         )
                     }
                 }
             }
         }
 
-        // BLE Terminal Advertising Card
+        // ==========================================
+        // 2. RECEIVER CHANNEL CONTROLS (BLE, WI-FI DIRECT, SOUNDWAVE)
+        // ==========================================
+        item {
+            Text(
+                text = "Offline Receiver Services",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.primary
+            )
+        }
+
+        // BLE GATT POS Receiver Card
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
@@ -178,130 +235,6 @@ fun MerchantHomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, if (isBleAdvertising) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(if (isBleAdvertising) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.FlashOn,
-                                contentDescription = null,
-                                tint = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "BLE Terminal Broadcasting",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.primary,
-                                softWrap = true,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = if (isBleAdvertising) "GATT Service 47a25000 Active • Discoverable by Buyers"
-                                else "Advertising Stopped • Tap switch to broadcast POS terminal",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
-                                softWrap = true,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    androidx.compose.material3.Switch(
-                        checked = isBleAdvertising,
-                        onCheckedChange = { active ->
-                            if (active) onStartBleAdvertising() else onStopBleAdvertising()
-                        }
-                    )
-                }
-            }
-        }
-
-        // Wi-Fi Direct Terminal Broadcasting Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, if (isWifiAdvertising) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(if (isWifiAdvertising) colors.primary.copy(alpha = 0.2f) else colors.surfaceContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Sensors,
-                                contentDescription = null,
-                                tint = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Wi-Fi Direct P2P Broadcasting",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.primary,
-                                softWrap = true,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = if (isWifiAdvertising) "DNS-SD Service _trustpay._tcp Active • TCP Server Port 8988"
-                                else "P2P Broadcasting Stopped • Tap switch to enable local TCP server",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isWifiAdvertising) colors.primary else colors.onSurfaceVariant,
-                                softWrap = true,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    androidx.compose.material3.Switch(
-                        checked = isWifiAdvertising,
-                        onCheckedChange = { active ->
-                            if (active) onStartWifiAdvertising() else onStopWifiAdvertising()
-                        }
-                    )
-                }
-            }
-        }
-
-        // Acoustic POS (Ultrasonic Soundwave) Receiver Card
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, if (isUltrasonicListening) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
@@ -314,13 +247,149 @@ fun MerchantHomeScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(if (isUltrasonicListening) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                                    .background(if (isBleAdvertising) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bluetooth,
+                                    contentDescription = null,
+                                    tint = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "BLE GATT POS Terminal",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (isBleAdvertising) "Broadcasting as '${merchant.businessName}' • Ready for GATT connection"
+                                    else "BLE POS idle • Switch ON to accept payments via Bluetooth",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isBleAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                    softWrap = true,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = isBleAdvertising,
+                            onCheckedChange = { active ->
+                                if (active) onStartBleAdvertising() else onStopBleAdvertising()
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Wi-Fi Direct P2P Receiver Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceLowest),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, if (isWifiAdvertising) colors.secondary else colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isWifiAdvertising) colors.secondary.copy(alpha = 0.2f) else colors.surfaceContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Sensors,
+                                    contentDescription = null,
+                                    tint = if (isWifiAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Wi-Fi Direct P2P Server",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary,
+                                    softWrap = true,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = if (isWifiAdvertising) "Broadcasting DNS-SD P2P service • Listening on Port 8988"
+                                    else "Wi-Fi Direct idle • Switch ON to accept payments via P2P socket",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isWifiAdvertising) colors.secondary else colors.onSurfaceVariant,
+                                    softWrap = true,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = isWifiAdvertising,
+                            onCheckedChange = { active ->
+                                if (active) onStartWifiAdvertising() else onStopWifiAdvertising()
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Acoustic POS (Ultrasonic Soundwave) Receiver Card
+        item {
+            val isSuccessState = ultrasonicStatusText?.contains("VALID", ignoreCase = true) == true
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isUltrasonicSignalDetected) colors.secondary.copy(alpha = 0.18f)
+                                     else if (isSuccessState) colors.primaryContainer.copy(alpha = 0.3f)
+                                     else colors.surfaceLowest
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        width = if (isUltrasonicSignalDetected || isSuccessState) 3.dp else 1.dp,
+                        color = if (isUltrasonicSignalDetected) colors.secondary
+                                else if (isSuccessState) colors.primary
+                                else if (isUltrasonicListening) colors.secondary.copy(alpha = 0.7f)
+                                else colors.outlineVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isUltrasonicSignalDetected || isUltrasonicListening) colors.secondary.copy(alpha = 0.3f) else colors.surfaceContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = androidx.compose.material.icons.Icons.Default.GraphicEq,
                                     contentDescription = null,
-                                    tint = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
+                                    tint = if (isUltrasonicSignalDetected || isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -335,10 +404,10 @@ fun MerchantHomeScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK pulses"
+                                    text = ultrasonicStatusText ?: if (isUltrasonicListening) "Microphone active • Listening for 17.5–19.5 kHz BFSK pulses"
                                     else "Acoustic POS idle • Switch ON to accept payments via soundwaves",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
+                                    color = if (isUltrasonicSignalDetected) colors.secondary else if (isUltrasonicListening) colors.secondary else colors.onSurfaceVariant,
                                     softWrap = true,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -353,6 +422,33 @@ fun MerchantHomeScreen(
                         )
                     }
 
+                    if (isUltrasonicSignalDetected) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.secondary.copy(alpha = 0.25f))
+                                .border(1.5.dp, colors.secondary, RoundedCornerShape(8.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.FlashOn,
+                                    contentDescription = null,
+                                    tint = colors.secondary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "🔊 SIGNAL DETECTED — 19.5 kHz Sync Recognized • Decoding...",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary
+                                )
+                            }
+                        }
+                    }
+
                     if (isUltrasonicListening) {
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(
@@ -361,9 +457,9 @@ fun MerchantHomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Live Audio Level (Goertzel Filter FFT)",
+                                text = if (isUltrasonicSignalDetected) "Receiving Acoustic Bytes (Goertzel Filter FFT)" else "Live Audio Level (Goertzel Filter FFT)",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurfaceVariant
+                                color = if (isUltrasonicSignalDetected) colors.secondary else colors.onSurfaceVariant
                             )
                             Text(
                                 text = "${(ultrasonicAudioLevel * 100).toInt()}% Signal",
@@ -378,7 +474,7 @@ fun MerchantHomeScreen(
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(4.dp)),
-                            color = if (ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
+                            color = if (isUltrasonicSignalDetected || ultrasonicAudioLevel > 0.3f) colors.secondary else colors.outlineVariant,
                             trackColor = colors.surfaceContainer
                         )
                     }

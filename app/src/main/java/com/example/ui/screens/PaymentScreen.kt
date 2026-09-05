@@ -292,6 +292,9 @@ fun PaymentScreen(
     generateMerchantReceiveQr: ((Merchant) -> Bitmap?)? = null,
     onOpenUssdClick: () -> Unit = {},
     onPlaySoundwave: () -> Unit = {},
+    isHardwareTransmitting: Boolean = false,
+    hardwareTransmissionProgress: Float = 0f,
+    hardwareTransmissionStatus: String? = null,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -303,6 +306,16 @@ fun PaymentScreen(
     var isMerchantDropdownOpen by remember { mutableStateOf(false) }
     var showLimitExceededModal by remember { mutableStateOf(false) }
     var showPermissionRationaleDialog by remember { mutableStateOf(false) }
+
+    // Render hardware transmission progress modal when actively sending acoustic/BLE/Wi-Fi pulse
+    HardwareTransmissionModal(
+        isTransmitting = isHardwareTransmitting,
+        progress = hardwareTransmissionProgress,
+        statusText = hardwareTransmissionStatus,
+        amount = if (amountInput.isEmpty()) "0" else amountInput,
+        merchantName = selectedMerchant.businessName,
+        offlineOption = selectedOfflineOption.label
+    )
 
     var isOnlineQrScanning by remember { mutableStateOf(false) }
     var scannedOnlineVpa by remember { mutableStateOf<String?>(null) }
@@ -2524,6 +2537,81 @@ fun parseOnlineUpiQr(
             }
         onSuccess(trimmed, name, null)
     } else {
-        onError("Invalid QR Code: Payload is not a recognized UPI payment format (expected upi://pay?pa=... or valid VPA).")
+        onError("Unrecognized QR Code format. Please scan a valid UPI or TrustPay Merchant QR.")
     }
+}
+
+@Composable
+fun HardwareTransmissionModal(
+    isTransmitting: Boolean,
+    progress: Float,
+    statusText: String?,
+    amount: String,
+    merchantName: String,
+    offlineOption: String
+) {
+    if (!isTransmitting) return
+
+    AlertDialog(
+        onDismissRequest = {},
+        confirmButton = {},
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = when (offlineOption) {
+                        "Soundwave" -> Icons.Default.GraphicEq
+                        "Bluetooth" -> Icons.Default.Bluetooth
+                        "Wi-Fi Direct" -> Icons.Default.Sensors
+                        else -> Icons.Default.QrCode
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Transmitting via $offlineOption",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Paying ₹$amount to $merchantName",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (offlineOption == "Soundwave") {
+                    AnimatedSoundwaveGraphic(
+                        isPlaying = true,
+                        waveColor = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                LinearProgressIndicator(
+                    progress = { progress.coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = statusText ?: "Transmitting encrypted Ed25519 payload...",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    )
 }

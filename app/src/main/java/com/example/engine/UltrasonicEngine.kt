@@ -37,7 +37,7 @@ import kotlin.math.sqrt
  */
 class UltrasonicEngine(private val context: Context) {
     companion object {
-        private const val TAG = "UltrasonicEngine"
+        private const val TAG = "TrustPaySoundwave"
         private const val SAMPLE_RATE = 44100
         private const val FREQ_SYNC = 19500.0  // 19.5 kHz preamble sync
         private const val FREQ_MARK = 18500.0  // 18.5 kHz for Bit 1
@@ -196,6 +196,7 @@ class UltrasonicEngine(private val context: Context) {
      */
     fun startListeningAcoustic(
         onAudioLevel: (Float) -> Unit,
+        onSignalDetected: () -> Unit = {},
         onResult: (isSuccess: Boolean, rawPayload: String, statusMessage: String) -> Unit
     ) {
         stopListening()
@@ -263,16 +264,33 @@ class UltrasonicEngine(private val context: Context) {
                     val markEnergy = computeGoertzelEnergy(frameBuffer, FREQ_MARK)
                     val spaceEnergy = computeGoertzelEnergy(frameBuffer, FREQ_SPACE)
 
+                    val maxOtherEnergy = maxOf(markEnergy, spaceEnergy)
+                    val syncRatio = if (maxOtherEnergy > 0.0000001) syncEnergy / maxOtherEnergy else syncEnergy / 0.0000001
+                    val stateStr = if (isSyncDetected) "DECODING_BITS" else "LISTENING_SYNC"
+
+                    // Real-time logcat output tag: TrustPaySoundwave
+                    Log.d(
+                        TAG,
+                        "RMS: %.4f | 17.5k(Space): %.6f | 18.5k(Mark): %.6f | 19.5k(Sync): %.6f | Ratio 19.5k/rest: %.2f | State: %s".format(
+                            normalizedLevel, spaceEnergy, markEnergy, syncEnergy, syncRatio, stateStr
+                        )
+                    )
+
                     val maxEnergy = maxOf(syncEnergy, maxOf(markEnergy, spaceEnergy))
 
                     if (!isSyncDetected) {
-                        // Look for 19.5 kHz Sync tone
-                        if (syncEnergy > 0.01 && syncEnergy > markEnergy * 1.5 && syncEnergy > spaceEnergy * 1.5) {
+                        // Look for 19.5 kHz Sync tone (calibrated threshold for mic attenuation: > 0.00002 & ratio > 1.15)
+                        if (syncEnergy > 0.00002 && syncRatio > 1.15) {
                             syncFrameCount++
-                            if (syncFrameCount >= 3) {
+                            Log.d(TAG, "Sync tone frame detected (${syncFrameCount}/2 consecutive frames) [syncEnergy=%.6f, ratio=%.2f]".format(syncEnergy, syncRatio))
+                            if (syncFrameCount >= 2) {
                                 isSyncDetected = true
                                 syncFrameCount = 0
                                 bitStream.clear()
+                                Log.d(TAG, "⚡ SYNC PREAMBLE RECOGNIZED! Firing onSignalDetected callback.")
+                                withContext(Dispatchers.Main) {
+                                    onSignalDetected()
+                                }
                             }
                         } else {
                             syncFrameCount = 0

@@ -484,10 +484,19 @@ fun ChatBubble(
             modifier = Modifier.padding(bottom = 2.dp)
         ) {
             if (!isUser) {
+                val labelText = if (message.isError) {
+                    "🌐 Network Required"
+                } else if (message.isLocalAnswer) {
+                    "⚡ Instant Local Response"
+                } else {
+                    "✨ Powered by Gemini"
+                }
+                val labelColor = if (message.isError) colors.error else if (message.isLocalAnswer) colors.primary else colors.secondary
+
                 Text(
-                    text = "✨ Gemini AI Guide",
+                    text = labelText,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    color = if (message.isError) colors.error else colors.secondary
+                    color = labelColor
                 )
             } else {
                 Text(
