@@ -18,6 +18,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowForward
@@ -31,6 +36,8 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
@@ -38,6 +45,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -72,6 +80,8 @@ fun BuyerHomeScreen(
     onTransactionClick: (Transaction) -> Unit,
     onSyncClick: () -> Unit,
     onOpenUssdClick: () -> Unit = {},
+    isBalanceMasked: Boolean = true,
+    onToggleBalanceMasked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val strings = LocalAppStrings.current
@@ -102,11 +112,24 @@ fun BuyerHomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = strings.availableBalance,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.onSurfaceVariant
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = strings.availableBalance,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = if (isBalanceMasked) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (isBalanceMasked) "Show balance" else "Hide balance",
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onToggleBalanceMasked() }
+                                    .testTag("balance_toggle_icon")
+                            )
+                        }
                         if (!isOnline) {
                             Box(
                                 modifier = Modifier
@@ -128,15 +151,24 @@ fun BuyerHomeScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Text(
-                        text = "₹${"%,.2f".format(walletBalance)}",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 34.sp,
-                            letterSpacing = (-0.5).sp
-                        ),
-                        color = colors.primary
-                    )
+                    AnimatedContent(
+                        targetState = isBalanceMasked,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(250)) togetherWith fadeOut(animationSpec = tween(250))
+                        },
+                        label = "BalanceMaskCrossfade"
+                    ) { masked ->
+                        Text(
+                            text = if (masked) "₹ • • • • •" else "₹${"%,.2f".format(walletBalance)}",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 34.sp,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = colors.primary,
+                            modifier = Modifier.testTag(if (masked) "masked_balance_text" else "revealed_balance_text")
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -249,26 +281,46 @@ fun BuyerHomeScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column {
-                            Text(
-                                text = "₹${buyer.availableExposure}",
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 28.sp
-                                ),
-                                color = colors.primary
-                            )
-                            Text(
-                                text = "${strings.availableBalance} / ₹${buyer.offlineLimit} (${strings.offlineExposureLimit})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
+                            AnimatedContent(
+                                targetState = isBalanceMasked,
+                                transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                                label = "AllowanceAvailableCrossfade"
+                            ) { masked ->
+                                Text(
+                                    text = if (masked) "₹ • • •" else "₹${buyer.availableExposure}",
+                                    style = MaterialTheme.typography.headlineMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 28.sp
+                                    ),
+                                    color = colors.primary
+                                )
+                            }
+                            AnimatedContent(
+                                targetState = isBalanceMasked,
+                                transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                                label = "AllowanceLimitCrossfade"
+                            ) { masked ->
+                                Text(
+                                    text = if (masked) "${strings.availableBalance} / ₹ • • • (${strings.offlineExposureLimit})"
+                                           else "${strings.availableBalance} / ₹${buyer.offlineLimit} (${strings.offlineExposureLimit})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
                         }
 
-                        Text(
-                            text = "₹${buyer.offlineExposure} ${strings.exposurePercentage}",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                            color = if (buyer.offlineExposure > 400L) colors.error else colors.onSurfaceVariant
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceMasked,
+                            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                            label = "ExposureAmountCrossfade"
+                        ) { masked ->
+                            Text(
+                                text = if (masked) "₹ • • • ${strings.exposurePercentage}"
+                                       else "₹${buyer.offlineExposure} ${strings.exposurePercentage}",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = if (buyer.offlineExposure > 400L) colors.error else colors.onSurfaceVariant
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -286,11 +338,18 @@ fun BuyerHomeScreen(
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "${strings.cryptographicProofReady}: ₹${buyer.availableExposure} ${strings.modeOfflineValueDesc}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurfaceVariant
-                    )
+                    AnimatedContent(
+                        targetState = isBalanceMasked,
+                        transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                        label = "ProofReadyCrossfade"
+                    ) { masked ->
+                        Text(
+                            text = if (masked) "${strings.cryptographicProofReady}: ₹ • • • ${strings.modeOfflineValueDesc}"
+                                   else "${strings.cryptographicProofReady}: ₹${buyer.availableExposure} ${strings.modeOfflineValueDesc}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -316,11 +375,17 @@ fun BuyerHomeScreen(
                             color = colors.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "₹250",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary
-                        )
+                        AnimatedContent(
+                            targetState = isBalanceMasked,
+                            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                            label = "PendingSyncCrossfade"
+                        ) { masked ->
+                            Text(
+                                text = if (masked) "₹ • • •" else "₹250",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = strings.liveSyncStatus,
@@ -329,6 +394,7 @@ fun BuyerHomeScreen(
                         )
                     }
                 }
+
 
                 // Risk Status Card
                 Card(

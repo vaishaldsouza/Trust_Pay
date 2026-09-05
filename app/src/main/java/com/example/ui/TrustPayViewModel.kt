@@ -111,6 +111,17 @@ class TrustPayViewModel(application: Application) : AndroidViewModel(application
     private val _themeMode = MutableStateFlow(prefsRepo.getThemeMode())
     val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
 
+    // Balance Privacy Preference
+    private val _isBalanceMasked = MutableStateFlow(prefsRepo.isBalanceMasked())
+    val isBalanceMasked: StateFlow<Boolean> = _isBalanceMasked.asStateFlow()
+
+    fun toggleBalanceMasked() {
+        val newValue = !_isBalanceMasked.value
+        _isBalanceMasked.value = newValue
+        prefsRepo.setBalanceMasked(newValue)
+    }
+
+
     // Voice Assistant state
     private val _isVoiceAssistantOpen = MutableStateFlow(false)
     val isVoiceAssistantOpen: StateFlow<Boolean> = _isVoiceAssistantOpen.asStateFlow()

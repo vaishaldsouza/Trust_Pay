@@ -160,9 +160,10 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
     val isUltrasonicListening by viewModel.isUltrasonicListening.collectAsState()
     val ultrasonicAudioLevel by viewModel.ultrasonicAudioLevel.collectAsState()
 
-    // Language & Theme State
+    // Language, Theme & Balance Privacy State
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val isBalanceMasked by viewModel.isBalanceMasked.collectAsState()
     val strings = LocalAppStrings.current
     val colors = LocalAppColors.current
 
@@ -471,8 +472,11 @@ fun TrustPayApp(viewModel: TrustPayViewModel = viewModel()) {
                                         viewModel.openUssdDialer(context) { errorMsg ->
                                             coroutineScope.launch { snackbarHostState.showSnackbar(errorMsg) }
                                         }
-                                    }
+                                    },
+                                    isBalanceMasked = isBalanceMasked,
+                                    onToggleBalanceMasked = { viewModel.toggleBalanceMasked() }
                                 )
+
                             }
                             UserRole.MERCHANT -> {
                                 MerchantHomeScreen(

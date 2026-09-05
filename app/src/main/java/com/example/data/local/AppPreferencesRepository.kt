@@ -61,4 +61,13 @@ class AppPreferencesRepository(context: Context) {
     fun getSavedUserEmail(): String? = prefs.getString("session_user_email", null)
     fun getSavedUserRole(): String? = prefs.getString("session_user_role", null)
     fun getSavedAuthToken(): String? = prefs.getString("session_auth_token", null)
+
+    fun isBalanceMasked(): Boolean {
+        return prefs.getBoolean("is_balance_masked", true)
+    }
+
+    fun setBalanceMasked(masked: Boolean) {
+        prefs.edit().putBoolean("is_balance_masked", masked).apply()
+    }
 }
+
