@@ -42,6 +42,35 @@ app.post('/api/mandate/create', async (req, res) => {
 
     console.log(`[Mandate Create] Initiating mandate for buyer ${buyerId} with max limit ₹${maxAmount}`);
 
+    // Step 1: Create or fetch Razorpay Customer ID
+    let customerId = `cust_dev_${buyerId}`;
+    try {
+      const custRes = await fetch('https://api.razorpay.com/v1/customers', {
+        method: 'POST',
+        headers: {
+          'Authorization': getRazorpayAuthHeader(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: `TrustPay Buyer ${buyerId}`,
+          email: `${buyerId}@trustpay.in`,
+          contact: '9876543210',
+          fail_existing: '0'
+        })
+      });
+
+      if (custRes.ok) {
+        const custData = await custRes.json();
+        customerId = custData.id || customerId;
+        console.log(`[Mandate Create] Created Razorpay Customer ID: ${customerId}`);
+      } else {
+        console.warn(`[Mandate Create] Customer API returned ${custRes.status}`);
+      }
+    } catch (custErr) {
+      console.warn('[Mandate Create] Customer creation exception:', custErr.message);
+    }
+
+    // Step 2: Create Token Order with customer_id
     const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
@@ -52,6 +81,7 @@ app.post('/api/mandate/create', async (req, res) => {
         amount: amountPaise,
         currency: 'INR',
         receipt: `rcpt_mnd_${Date.now()}`,
+        customer_id: customerId.startsWith('cust_') ? customerId : undefined,
         notes: {
           buyer_id: buyerId,
           mandate_type: 'UPI_AUTOPAY_TOKEN'
@@ -67,15 +97,20 @@ app.post('/api/mandate/create', async (req, res) => {
     let orderData = {};
     if (rzpRes.ok) {
       orderData = await rzpRes.json();
+      console.log(`[Mandate Create] Order created: ${orderData.id}`);
     } else {
-      console.warn(`[Mandate Create] Razorpay API warning (${rzpRes.status}). Falling back to proxy token.`);
+      const errTxt = await rzpRes.text();
+      console.warn(`[Mandate Create] Razorpay Order creation API warning (${rzpRes.status}):`, errTxt);
     }
 
-    const mandateRef = orderData.id ? `mnd_rzp_${orderData.id}` : `MND-${Date.now().toString().takeLast(6)}-XYZ`;
+    const tokenId = orderData.token_id || orderData.id || `token_dev_${Date.now()}`;
+    const mandateRef = `mnd_${customerId}_${tokenId}`;
 
     return res.json({
       success: true,
       mandateReference: mandateRef,
+      customerId: customerId,
+      tokenId: tokenId,
       buyerId: buyerId,
       maxMonthlyLimit: maxAmount,
       type: 'Razorpay UPI Autopay Token',
@@ -161,8 +196,23 @@ app.post('/api/settlement/execute', async (req, res) => {
     const orderId = orderData.id;
     console.log(`[Settlement Order Created] Order ID: ${orderId} for TX ${transactionId}`);
 
+    // Parse mandateReference to extract customerId and tokenId
+    let parsedCustomerId = buyerId;
+    let parsedTokenId = mandateReference;
+
+    if (mandateReference.startsWith('mnd_cust_')) {
+      const parts = mandateReference.includes('_token_')
+        ? mandateReference.split('_token_')
+        : mandateReference.split('_order_');
+      if (parts.length === 2) {
+        parsedCustomerId = parts[0].replace('mnd_', '');
+        parsedTokenId = parts[1];
+      }
+    }
+
+    console.log(`[Settlement Charge Init] Customer: ${parsedCustomerId}, Token: ${parsedTokenId}`);
+
     // Step 2: Execute Real Recurring Payment Charge against Mandate Token
-    // API Endpoint: POST https://api.razorpay.com/v1/payments/create/recurring
     const chargeRes = await fetch('https://api.razorpay.com/v1/payments/create/recurring', {
       method: 'POST',
       headers: {
@@ -175,8 +225,8 @@ app.post('/api/settlement/execute', async (req, res) => {
         amount: amount * 100,
         currency: 'INR',
         order_id: orderId,
-        customer_id: buyerId,
-        token: mandateReference.startsWith('mnd_') ? mandateReference.replace('mnd_rzp_', '') : 'token_dev_default',
+        customer_id: parsedCustomerId,
+        token: parsedTokenId,
         description: `TrustPay Mandate Drawdown for TX ${transactionId}`
       })
     });
