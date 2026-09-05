@@ -156,6 +156,36 @@ fun PaymentConfirmationScreen(
                                 )
                             }
                         }
+                    } else if (transaction.status == TransactionStatus.SETTLEMENT_PENDING) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colors.warningContainer.copy(alpha = 0.6f))
+                                .border(1.dp, colors.warning.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .padding(vertical = 12.dp, horizontal = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "⏳ Settlement Pending",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.warning
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Razorpay Order ID: ${transaction.settlementRef ?: "order_registered"}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.primary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Awaiting mandate confirmation — will settle automatically once Razorpay processes the recurring charge webhook.",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
                     } else {
                         Box(
                             modifier = Modifier
@@ -234,14 +264,16 @@ fun PaymentConfirmationScreen(
                         StepItem("Signed", "Cryptographic key applied locally", isCompleted = true, isInProgress = false),
                         StepItem("Offline Accepted", "Bounded limits verified by Trust Agent", isCompleted = true, isInProgress = false),
                         StepItem(
-                            "Pending Sync",
-                            if (transaction.status == TransactionStatus.SETTLED) "Completed" else "Retrying in 2:45 (Awaiting reconnect)",
+                            "Pending Settlement",
+                            if (transaction.status == TransactionStatus.SETTLED) "Order settled"
+                            else if (transaction.status == TransactionStatus.SETTLEMENT_PENDING) "Razorpay Order ${transaction.settlementRef ?: ""} registered • Awaiting webhook capture"
+                            else "Retrying in 2:45 (Awaiting reconnect)",
                             isCompleted = transaction.status == TransactionStatus.SETTLED,
-                            isInProgress = transaction.status == TransactionStatus.PENDING_SYNC || transaction.status == TransactionStatus.OFFLINE_ACCEPTED
+                            isInProgress = transaction.status == TransactionStatus.SETTLEMENT_PENDING || transaction.status == TransactionStatus.PENDING_SYNC || transaction.status == TransactionStatus.OFFLINE_ACCEPTED
                         ),
                         StepItem(
                             "Settled",
-                            if (transaction.status == TransactionStatus.SETTLED) "Razorpay Autopay settled: ${transaction.settlementRef ?: "MND-9823-XYZ"}" else "Final reconciliation with Razorpay",
+                            if (transaction.status == TransactionStatus.SETTLED) "Razorpay payment captured: ${transaction.settlementRef ?: "MND-9823-XYZ"}" else "Final reconciliation with Razorpay",
                             isCompleted = transaction.status == TransactionStatus.SETTLED,
                             isInProgress = false
                         )

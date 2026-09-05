@@ -409,6 +409,11 @@ fun StatusBadge(
             colors.warning,
             "PENDING SYNC"
         )
+        TransactionStatus.SETTLEMENT_PENDING -> Triple(
+            colors.warningContainer.copy(alpha = 0.85f),
+            colors.warning,
+            "⏳ SETTLEMENT PENDING"
+        )
         TransactionStatus.FRAUD_REVIEW -> Triple(
             colors.errorContainer,
             colors.error,

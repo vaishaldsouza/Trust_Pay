@@ -239,45 +239,58 @@ app.post('/api/settlement/execute', async (req, res) => {
       console.warn(`[Settlement Charge Warning] Recurring charge endpoint returned (${chargeRes.status}):`, chargeErrText);
     }
 
-    const isTestMode = RAZORPAY_KEY_ID.startsWith('rzp_test');
-    const realPaymentId = paymentData.id || `pay_${orderId.replace('order_', '')}`;
-    const paymentStatus = paymentData.status || ((chargeRes.ok || (isTestMode && orderRes.ok)) ? 'captured' : 'pending');
+    const realPaymentId = paymentData.id || null;
+    const paymentStatus = paymentData.status || 'pending';
 
-    console.log(`[Settlement Charge Result] Payment ID: ${realPaymentId}, Status: ${paymentStatus} (TestMode: ${isTestMode})`);
+    console.log(`[Settlement Charge Result] Real Payment ID: ${realPaymentId}, Status: ${paymentStatus}`);
 
-    // Transition status:
-    // Mark SETTLED if Razorpay confirms payment status === 'captured' or in Test Mode with valid Razorpay Test Order
-    if (paymentStatus === 'captured') {
+    // Strictly transition status:
+    // Only mark SETTLED if Razorpay API confirms payment status === 'captured'
+    if (paymentStatus === 'captured' && realPaymentId) {
+      const settlementRef = `set_rzp_${Date.now()}`;
+      settledTransactionsStore.set(transactionId, {
+        status: 'SETTLED',
+        transactionId,
+        orderId,
+        paymentId: realPaymentId,
+        settlementRef,
+        settledAt: Date.now()
+      });
+
       return res.json({
         success: true,
         status: 'SETTLED',
         transactionId: transactionId,
         orderId: orderId,
         paymentId: realPaymentId,
-        settlementRef: `set_rzp_${Date.now()}`,
+        settlementRef: settlementRef,
         amount: amount,
-        note: isTestMode ? 'Razorpay Test Mode Order Settled' : 'Razorpay Production Mandate Drawdown Captured',
+        note: 'Razorpay Mandate Drawdown Captured & Settled',
         timestamp: Date.now()
       });
-    } else if (paymentStatus === 'authorized' || paymentStatus === 'pending') {
-      // Async settlement: Payment initiated on Razorpay, waiting for webhook confirmation
+    } else {
+      // Pending Async Settlement: Order registered on Razorpay, awaiting payment.captured webhook
+      const pendingRecord = {
+        status: 'SETTLEMENT_PENDING',
+        transactionId,
+        orderId,
+        paymentId: realPaymentId,
+        settlementRef: orderId,
+        note: 'Awaiting mandate confirmation — will settle automatically once Razorpay processes the recurring charge webhook.',
+        updatedAt: Date.now()
+      };
+      settledTransactionsStore.set(transactionId, pendingRecord);
+
       return res.json({
         success: true,
         status: 'SETTLEMENT_PENDING',
         transactionId: transactionId,
         orderId: orderId,
         paymentId: realPaymentId,
-        note: 'Payment authorized on Razorpay. Pending final webhook capture confirmation.',
+        settlementRef: orderId,
+        amount: amount,
+        note: 'Awaiting mandate confirmation — will settle automatically once Razorpay processes the recurring charge webhook.',
         timestamp: Date.now()
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        status: 'SETTLEMENT_FAILED',
-        transactionId: transactionId,
-        orderId: orderId,
-        reason: 'PAYMENT_CHARGE_FAILED',
-        error: `Razorpay charge execution failed with status: ${paymentStatus}`
       });
     }
   } catch (err) {
@@ -291,16 +304,19 @@ app.post('/api/settlement/execute', async (req, res) => {
   }
 });
 
+// In-memory store for settlement state tracking across webhooks
+const settledTransactionsStore = new Map();
+
 /**
  * Endpoint 3: POST /api/webhooks/razorpay
- * Verifies Razorpay HMAC-SHA256 webhook signature and logs settlement confirmation.
+ * Verifies Razorpay HMAC-SHA256 webhook signature and transitions transaction status to SETTLED when payment.captured arrives.
  */
 app.post('/api/webhooks/razorpay', (req, res) => {
   try {
     const signature = req.headers['x-razorpay-signature'];
     const bodyStr = JSON.stringify(req.body);
 
-    if (signature) {
+    if (RAZORPAY_WEBHOOK_SECRET && signature) {
       const expectedSig = crypto
         .createHmac('sha256', RAZORPAY_WEBHOOK_SECRET)
         .update(bodyStr)
@@ -308,14 +324,51 @@ app.post('/api/webhooks/razorpay', (req, res) => {
 
       if (signature !== expectedSig) {
         console.warn('[Webhook Warning] Invalid HMAC signature mismatch');
-      } else {
-        console.log('[Webhook Verified] Settlement event received successfully from Razorpay');
+        return res.status(400).json({ error: 'HMAC signature verification failed' });
+      }
+    }
+
+    const event = req.body.event;
+    console.log(`[Webhook Received] Event: ${event}`);
+
+    if (event === 'payment.captured' || event === 'order.paid' || event === 'subscription.charged') {
+      const paymentEntity = req.body.payload?.payment?.entity || {};
+      const paymentId = paymentEntity.id;
+      const orderId = paymentEntity.order_id;
+      const txId = paymentEntity.notes?.trustpay_tx_id;
+
+      console.log(`[Webhook Processing] Payment ${paymentId} captured for Order ${orderId} (TX: ${txId})`);
+
+      if (txId) {
+        settledTransactionsStore.set(txId, {
+          status: 'SETTLED',
+          transactionId: txId,
+          orderId: orderId,
+          paymentId: paymentId,
+          settlementRef: `set_rzp_${Date.now()}`,
+          settledAt: Date.now()
+        });
       }
     }
 
     return res.json({ status: 'ok', received: true });
   } catch (err) {
+    console.error('[Webhook Error]', err);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Endpoint 4: GET /api/settlement/status/:transactionId
+ * Allows client app to poll active settlement status after webhook processing.
+ */
+app.get('/api/settlement/status/:transactionId', (req, res) => {
+  const { transactionId } = req.params;
+  const record = settledTransactionsStore.get(transactionId);
+  if (record) {
+    return res.json({ success: true, ...record });
+  } else {
+    return res.status(404).json({ success: false, status: 'NOT_FOUND' });
   }
 });
 
